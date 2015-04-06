@@ -13,6 +13,8 @@ pred.growth<-function(pg1,pg2,E,s1,s2,a,b,c1,c2){
   g.size = exp(-0.5*(log(gdata$dbh0/s1)/s2)^2)
   c.tree = exp(a + b*gdata$dbh0)/((exp(a + b*gdata$dbh0))+1)
   sel.subplotID = gdata$subplotID
+  #MCV I suspect the line below is a problem, since it is going to match all the trees
+  #MCV To get things working at first, maybe just use the total subplot BA?
   BA.adj = (sum(c.tree * gdata[gdata$subplotID==sel.subplotID,]$BA0))/
                 gdata$subplot.area
   g.comp = c1 + (1-c1) * exp(-c2*BA.adj)
