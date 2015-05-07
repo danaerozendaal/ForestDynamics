@@ -389,7 +389,7 @@ totdata6<-totdata5[,c("PlotCode","subplot","TreeID","SubPlotT1","Subplot_Standar
                       "count.x","count.y","count.x.std","count.y.std","area.sub.T1","area.sub.st",
                       "CensusDate","perc.trees.x","perc.trees.x.std","dbh0","dbh1","BA0","BA1",
                       "dbhgrowth","dead","recruit","family","genus","binomial","WD","subplot.area",
-                      "subplotID","subplot.type","subplot.no.trees","subplotBA","subplotBA.m2ha")]
+                      "subplotID","subplot.type","subplot.no.trees","subplotBA.m2ha")]
 
 #Save data file
 write.table(totdata6,"All data for analysis.txt",row.names=F,quote=F,sep="\t")
