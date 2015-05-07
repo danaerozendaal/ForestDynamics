@@ -1,7 +1,12 @@
 ###############################################################################
 ###############################################################################
 #Edit Chave database
-WD.Chave<-read.table("C:/Users/rozendad/Dropbox/Rainfor data edited/Wood density data Chave.txt",h=T)
+
+#dropbox <- "C:/Users/rozendad/Dropbox/Rainfor data edited"
+dropbox <- "C:/Users/vande202/Dropbox/Rainfor data edited"
+
+
+WD.Chave<-read.table(paste(dropbox,"Wood density data Chave.txt",sep="/"),h=T)
 
 #Add species average per region
 avg.spp<-aggregate(WD.Chave$WD,list(WD.Chave$region,WD.Chave$family,

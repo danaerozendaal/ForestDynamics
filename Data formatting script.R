@@ -7,7 +7,10 @@ library(FD)
 ##FORMAT TREE DATA########################################################
 #Load raw data
 
-org.data<-read.table("C:/Users/rozendad/Dropbox/Rainfor data edited/Treedata prep.txt",h=T)
+#dropbox <- "C:/Users/rozendad/Dropbox/Rainfor data edited"
+dropbox <- "C:/Users/vande202/Dropbox/Rainfor data edited"
+
+org.data<-read.table(paste(dropbox,"Treedata prep.txt",sep="/"),h=T)
 
 #PlotCode MAK-10 not in plotdata (has MAK-01 instead...)? Exclude for now.
 data<-org.data[org.data$PlotCode!="MAK-10",]
@@ -118,7 +121,8 @@ names(no.subplots)<-c("PlotCode","no.subplots.T1","no.subplots.standard","count.
 ##################################################################################
 ##ADD PLOT DATA AND FORMAT########################################################
 #Load raw data
-pdata<-read.table("C:/Users/rozendad/Dropbox/Rainfor data edited/Plotdata prep.txt",h=T)
+
+pdata<-read.table(paste(dropbox,"Plotdata prep.txt",sep="/"),h=T)
 pdata$region<-pdata$ContinentName
 
 #Add E and CWD for all plots for biomass estimates (Chave et al. 2014 GCB) 

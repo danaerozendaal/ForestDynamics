@@ -106,8 +106,8 @@ WD<-WD.list
 PlotCode.list<-split(gdata$PlotCode,gdata$subplotID)
 PlotCode<-PlotCode.list
 
-dbhgrowth.list<-split(gdata$dbh0,gdata$subplotID)
-dbhgrowth<-dbh0.list
+dbhgrowth.list<-split(gdata$dbhgrowth,gdata$subplotID)
+dbhgrowth<-dbhgrowth.list
 
 #fDBH <- list(a=rnorm(20,20,5),b=rnorm(25,30,10))
 #c0 <- 2, c1 <- -0.1, c2 <- -0.05, c4 <- 0.01
@@ -133,61 +133,76 @@ subplot.comp <- function(dbhs,c0,c1,c2,c4) {
   
 }
 
+ul.WD <- unlist(WD)
+ul.PlotCode <- unlist(PlotCode)
+ul.dbhgrowth <- unlist(dbhgrowth)
+ul.fDBH <- unlist(fDBH)
+
 #growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,c4,E_all,E_mean,E_sd,sigma_int,sigma_slope) {
 growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,c4,E_all,E_mean,E_sd,sigma) {
   #growth.ll <- function(g1,g2,s1,s2,E_all,E_mean,E_sd,sigma) { #runs
   
-  pot.growth <- g1 + g2*(unlist(WD))
+  pot.growth <- g1 + g2*(ul.WD)
   
-  g.size <- exp(-0.5*(log(unlist(fDBH)/s1)/s2)^2)
-  #g.size <- exp(-0.5*(log(gdata$dbh0/s1)/s2)^2)
+  g.size <- exp(-0.5*(log(ul.fDBH/s1)/s2)^2)
+  #g.size<- 1
   
   g.comp <-unlist(lapply(fDBH,FUN=subplot.comp,c0,c1,c2,c4))
+  #g.comp <- 1
   
-  g.pred <- pot.growth * E_all[unlist(PlotCode)] * g.size * g.comp
+  g.pred <- pot.growth * E_all[ul.PlotCode] * g.size * g.comp
   
   #sigma <- sigma_int + sigma_slope * pred
   
   #likelihood
-  g.ll <- dnorm(unlist(dbhgrowth),g.pred,sigma,log=T)
+  g.ll <- sum(dnorm(ul.dbhgrowth,g.pred,sigma,log=T))
   
   #parameter hierarchy
-  log_E_hier<-dnorm(E_all,E_mean,E_sd,log=T)
+  log_E_hier<-sum(dnorm(E_all,E_mean,E_sd,log=T))
   if(is.na(log_E_hier)) print(range(E_all))
   if(is.na(g.ll)) print(range(g.pred))
   
-  return(sum(g.ll + log_E_hier))
+  ll <- sum(g.ll) + sum(log_E_hier)
+  #print(ll)
+  
+  return(ll)
   
 }
 
 fb.pars <- list(
   g1 = c(-100,100,1,0,0,1),
   g2 = c(-100,100,1,0,0,1),
-  E_all = c(1e-3,1,0.5,1,0,1,181),
+  s1 = c(1e-3,1000,1.0,1,1,1),
+  s2 = c(1e-3,1000,1.0,1,1,1),
+  c0 = c(-10,10,1,0,1,1),      
+  c1 = c(-10,10,1,0,1,1),
+  c2 = c(-10,10,1,0,1,1),      
+  c4 = c(-10,10,1,0,1,1),
+  E_all = c(1e-3,1,0.5,0,1,1,181),
   E_mean = c(1e-3,1,0.5,1,0,1),
   E_sd = c(1e-3,1,0.5,1,0,1),
-  s1 = c(1e-3,1000,1.0,1,0,1),
-  s2 = c(1e-3,1000,1.0,1,0,1),
-  c0 = c(-10,10,0.5,0,0,1),      
-  c1 = c(-10,10,0.5,0,0,1),
-  c2 = c(-10,10,0.5,0,0,1),      
-  c4 = c(-10,10,0.5,0,0,1),
   sigma = c(1e-3,10,1.0,1,0,1)
   #sigma_int = c(1e-3,10,1.0,1,0,1),
   #sigma_slope = c(1e-3,10,1.0,1,0,1)
 )
 
-fb.out<-filzbach(40000,40000,growth.ll,nrow(gdata),fb.pars)
+fb.out<-filzbach(20000,10000,growth.ll,nrow(gdata),fb.pars)
 #write.table(df.fb.out.g,"fb.out.g.txt",row.names=F,quote=F,sep="\t")
 
 #Convergence
-growth.llvec<-function(x) growth.ll(x[1],x[2],x[3:183],x[184],x[185],x[186],x[187],
-                                    x[188],x[189],x[190])
+growth.llvec<-function(x) growth.ll(x[1],x[2],x[3],x[4],x[5],x[6],x[7],x[8],x[9:189],x[190],x[191],x[192])
 fb.out.ll2<-apply(fb.out,1,growth.llvec)
 plot(fb.out.ll2,type="l")
 
 #Calculate goodness of fit
 fb.pm<-colMeans(fb.out)
+
+pred <- fb.pm[1]+fb.pm[2]*ul.WD
+plot(pred,ul.dbhgrowth)
+abline(0,1)
+cor(pred,ul.dbhgrowth)^2
+
+
 pred<-pred.growth(fb.pm[1],fb.pm[2],(fb.pm[3:183])[gdata$PlotCode],fb.pm[186],
                   fb.pm[187],fb.pm[188],fb.pm[189])
 plot(pred,gdata$dbhgrowth)
