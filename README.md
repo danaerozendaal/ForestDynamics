@@ -11,3 +11,6 @@ Files:
 
 ##### R Scripts
 * Initial model fits
+* Data formatting script
+* Format Chave database
+* Exploratory graphs
