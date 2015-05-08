@@ -138,20 +138,29 @@ ul.PlotCode <- unlist(PlotCode)
 ul.dbhgrowth <- unlist(dbhgrowth)
 ul.fDBH <- unlist(fDBH)
 
+#function for predicted growth rates
+pred.growth<-function(g1,g2,s1,s2,c0,c1,c2,c4,E){
+  
+  #pot.growth = g1 + g2*ul.WD
+  pot.growth <- 1
+  
+  #g.size = exp(-0.5*(log(ul.fDBH/s1)/s2)^2)
+  g.size<- 1
+  
+  g.comp = unlist(lapply(fDBH,FUN=subplot.comp,c0,c1,c2,c4))
+  #g.comp <- 1
+  
+  pred = pot.growth * E * g.size * g.comp
+  
+  return(pred)
+}
+
 #growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,c4,E_all,E_mean,E_sd,sigma_int,sigma_slope) {
 growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,c4,E_all,E_mean,E_sd,sigma) {
   #growth.ll <- function(g1,g2,s1,s2,E_all,E_mean,E_sd,sigma) { #runs
-  
-  pot.growth <- g1 + g2*(ul.WD)
-  
-  g.size <- exp(-0.5*(log(ul.fDBH/s1)/s2)^2)
-  #g.size<- 1
-  
-  g.comp <-unlist(lapply(fDBH,FUN=subplot.comp,c0,c1,c2,c4))
-  #g.comp <- 1
-  
-  g.pred <- pot.growth * E_all[ul.PlotCode] * g.size * g.comp
-  
+   
+  g.pred <- pred.growth(g1,g2,s1,s2,c0,c1,c2,c4,E_all[ul.PlotCode])
+    
   #sigma <- sigma_int + sigma_slope * pred
   
   #likelihood
@@ -172,15 +181,15 @@ growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,c4,E_all,E_mean,E_sd,sigma) {
 fb.pars <- list(
   g1 = c(-100,100,1,0,0,1),
   g2 = c(-100,100,1,0,0,1),
-  s1 = c(1e-3,1000,1.0,1,1,1),
-  s2 = c(1e-3,1000,1.0,1,1,1),
-  c0 = c(-10,10,1,0,1,1),      
-  c1 = c(-10,10,1,0,1,1),
-  c2 = c(-10,10,1,0,1,1),      
-  c4 = c(-10,10,1,0,1,1),
-  E_all = c(1e-3,1,0.5,0,1,1,181),
-  E_mean = c(1e-3,1,0.5,1,0,1),
-  E_sd = c(1e-3,1,0.5,1,0,1),
+  s1 = c(1e-3,1000,1.0,0,0,1),
+  s2 = c(1e-3,1000,1.0,0,0,1),
+  c0 = c(-10,10,1,0,0,1),      
+  c1 = c(-10,10,1,0,0,1),
+  c2 = c(-10,10,1,0,0,1),      
+  c4 = c(-10,10,1,0,0,1),
+  E_all = c(1e-3,1,0.5,0,1,0,181),
+  E_mean = c(1e-3,1,0.5,1,1,1),
+  E_sd = c(1e-3,1,0.5,1,1,1),
   sigma = c(1e-3,10,1.0,1,0,1)
   #sigma_int = c(1e-3,10,1.0,1,0,1),
   #sigma_slope = c(1e-3,10,1.0,1,0,1)
@@ -196,17 +205,11 @@ plot(fb.out.ll2,type="l")
 
 #Calculate goodness of fit
 fb.pm<-colMeans(fb.out)
-
-pred <- fb.pm[1]+fb.pm[2]*ul.WD
+pred<-pred.growth(fb.pm[1],fb.pm[2],fb.pm[3],fb.pm[4],fb.pm[5],fb.pm[6],fb.pm[7],fb.pm[8],
+                  (fb.pm[9:189])[ul.PlotCode])
 plot(pred,ul.dbhgrowth)
 abline(0,1)
 cor(pred,ul.dbhgrowth)^2
-
-
-pred<-pred.growth(fb.pm[1],fb.pm[2],(fb.pm[3:183])[gdata$PlotCode],fb.pm[186],
-                  fb.pm[187],fb.pm[188],fb.pm[189])
-plot(pred,gdata$dbhgrowth)
-abline(0,1)
 
 #Calculate credible intervals
 fb.ci2<-apply(fb.out,2,FUN=quantile,probs=c(0.025,0.5,0.975))
@@ -230,7 +233,7 @@ mdata<-data[!is.na(data$dbh0) & data$dbh0>0 & !is.na(data$WD) &
               !is.na(data$dead),]  #check still!
 
 #function for predicted mortality rates
-pred.mort<-function(pm,s1,s2,s3,s4,c1,c2){
+pred.mort<-function(pm,s1,s3,s4,c1,c2){
   
   pot.mort <- pm
   
@@ -249,7 +252,7 @@ pred.mort<-function(pm,s1,s2,s3,s4,c1,c2){
   return(p.int)
 }
 
-mort.ll<-function(pm,s1,s2,s3,s4,c1,c2){
+mort.ll<-function(pm,s1,s3,s4,c1,c2){
   
   ll=numeric()
   
@@ -257,7 +260,7 @@ mort.ll<-function(pm,s1,s2,s3,s4,c1,c2){
   for (i in nrow(mdata)){
     
     #probability of mortality
-    p.int<-pred.mort(pm,s1,s2,s3,s4,c1,c2)
+    p.int<-pred.mort(pm,s1,s3,s4,c1,c2)
     
     #assign status (dead/alive) and calculate likelihood
     if (mdata[i,]$dead==1) ll[i]<-dbinom(data[i,]$dead,size=1,prob=p.int[i],log=T)
@@ -265,6 +268,9 @@ mort.ll<-function(pm,s1,s2,s3,s4,c1,c2){
     
     #sum likelihood per tree
     ll_tot<-sum(ll)
+    
+    #if(is.na(ll_tot)) print(range(p.int))
+    
     return(ll_tot)
     
   }
@@ -279,7 +285,7 @@ fb.pars.m<-list(
   c2 = c(1e-3,100,1,1,0,1)
 )  
 
-fb.out.m<-filzbach(40000,40000,mort.ll,nrow(mdata),fb.pars.m)
+fb.out.m<-filzbach(20000,20000,mort.ll,nrow(mdata),fb.pars.m)
 
 ##########################################################################################
 ##RECRUITMENT
