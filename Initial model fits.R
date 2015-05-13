@@ -15,9 +15,15 @@ gdata<-data[!is.na(data$dbhgrowth) & !is.na(data$dbh0) & !is.na(data$WD) &
 gdata$PlotCode<-factor(gdata$PlotCode)
 gdata$PlotCode<-as.numeric(gdata$PlotCode)
 
+meandbh<-mean(gdata$dbh0)  #now 21.6
+maxdbh<-max(gdata$dbh0)  #now 202
+
 ##########################################################################################
 ##########################################################################################
-##GROWTH MODEL TRIAL WITH SIZE-DEPENDENT COMPETITION EFFECTS, DOES NOT WORK YET
+##GROWTH MODEL TRIAL WITH SIZE-DEPENDENT COMPETITION EFFECTS
+
+#fix c1 to 0, and c2 to 2. Then the competition effect reduces to total subplot BA.
+#RUN ALSO with non-fixed parameters.
 
 library(filzbach)
 
@@ -30,24 +36,24 @@ PlotCode<-split(gdata$PlotCode,gdata$subplotID)
 
 dbhgrowth<-split(gdata$dbhgrowth,gdata$subplotID)
 
-comp.fun <- function(focal,target,c0,c1,c2) {
+comp.fun <- function(focal,target,c2) {
   
   #   #matrix algebra version
   #   B <- c(c0,c1,c2)
   #   X <- cbind(1,focal,target)
   #   return(plogis(X%*%B)*target)    
   
-  return(plogis(c0+c1*(focal)+c2*(target))*target)
-  #return(plogis(c0+c1*(focal-20)+c2*(target-20))*target)  #center data by subtracting a dbh value  
+  return((target/21.6)^c2)
+    
 }
 
-subplot.comp <- function(dbhs,c0,c1,c2,c4) {
+subplot.comp <- function(dbhs,c0,c1,c2) {
   
   #competition effect matrix
-  comp <- outer(dbhs,dbhs,FUN=comp.fun,c0,c1,c2)
+  comp <- outer(dbhs,dbhs,FUN=comp.fun,c2)
   
   #growth effect on focal trees
-  fcomp <- exp(-c4*rowSums(comp))
+  fcomp <- exp(-c0 * ((dbhs/21.6)^c1) * rowSums(comp))
   
 }
 
@@ -57,15 +63,15 @@ ul.dbhgrowth <- unlist(dbhgrowth)
 ul.fDBH <- unlist(fDBH)
 
 #function for predicted growth rates
-pred.growth<-function(g1,g2,s1,s2,c0,c1,c2,c4,E){
+pred.growth<-function(g1,g2,s1,c0,c1,c2,E){
   
-  #pot.growth = g1 + g2*ul.WD
-  pot.growth <- 1
+  pot.growth = g1 + g2*ul.WD
+  #pot.growth <- 1
   
-  #g.size = exp(-0.5*(log(ul.fDBH/s1)/s2)^2)
+  #g.size = (ul.DBH/21.6)^s1
   g.size<- 1
   
-  g.comp = unlist(lapply(fDBH,FUN=subplot.comp,c0,c1,c2,c4))
+  g.comp = unlist(lapply(fDBH,FUN=subplot.comp,c0,c1,c2))
   #g.comp <- 1
   
   pred = pot.growth * E * g.size * g.comp
@@ -74,9 +80,9 @@ pred.growth<-function(g1,g2,s1,s2,c0,c1,c2,c4,E){
 }
 
 #growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,c4,E_all,E_mean,E_sd,sigma_int,sigma_slope) {
-growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,c4,E_all,E_mean,E_sd,sigma) {
-    
-  g.pred <- pred.growth(g1,g2,s1,s2,c0,c1,c2,c4,E_all[ul.PlotCode])
+growth.ll <- function(g1,g2,s1,c0,c1,c2,E_all,E_mean,E_sd,sigma) {
+  
+  g.pred <- pred.growth(g1,g2,s1,c0,c1,c2,E_all[ul.PlotCode])
     
   #sigma <- sigma_int + sigma_slope * pred
   
@@ -95,15 +101,14 @@ growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,c4,E_all,E_mean,E_sd,sigma) {
   
 }
 
-fb.pars <- list(
-  g1 = c(-100,100,1,0,1,1),
-  g2 = c(-100,100,1,0,1,1),
-  s1 = c(1e-3,1000,1.0,0,1,1),
-  s2 = c(1e-3,1000,1.0,0,1,1),
-  c0 = c(-10,10,1,0,0,1),      
-  c1 = c(-10,10,1,0,0,1),
-  c2 = c(-10,10,1,0,0,1),      
-  c4 = c(-10,10,1,0,0,1),
+#c0 should be positive?
+fb.pars2 <- list(
+  g1 = c(-100,100,1,0,0,1),
+  g2 = c(-100,100,1,0,0,1),
+  s1 = c(1e-6,1,0,0,0,1),       #s1=1 is a linear relation, s1<1=saturating, s1>1 (kind of exponential?)  
+  c0 = c(-100,100,1,0,0,1),      
+  c1 = c(-100,100,0,0,1,1),
+  c2 = c(-100,100,2,0,1,1),
   E_all = c(1e-3,1,1,0,1,0,181),
   E_mean = c(1e-3,1,1,1,1,1),
   E_sd = c(1e-3,1,1,1,1,1),
@@ -112,19 +117,22 @@ fb.pars <- list(
   #sigma_slope = c(1e-3,10,1.0,1,0,1)
 )
 
-fb.out<-filzbach(40000,20000,growth.ll,nrow(gdata),fb.pars)
-#write.table(df.fb.out.g,"fb.out.g.txt",row.names=F,quote=F,sep="\t")
+fb.out.g2<-filzbach(40000,20000,growth.ll,nrow(gdata),fb.pars2)
+df.fb.out.g2<-as.data.frame(fb.out.g2)
+write.table(df.fb.out.g2,"fb.out.g.size-dep-comp fixed.txt",row.names=F,quote=F,sep="\t")
 
 #Convergence
-growth.llvec<-function(x) growth.ll(x[1],x[2],x[3],x[4],x[5],x[6],x[7],x[8],x[9:189],x[190],x[191],x[192])
+x11(5,5)
+growth.llvec<-function(x) growth.ll(x[1],x[2],x[3],x[4],x[5],x[6],x[7:187],x[188],x[189],x[190])
 fb.out.ll2<-apply(fb.out,1,growth.llvec)
-plot(fb.out.ll2,type="l")
+plot(fb.out.ll2,type="l",main="size-dep-comp fixed")
 
 #Calculate goodness of fit
+x11(5,5)
 fb.pm<-colMeans(fb.out)
-pred<-pred.growth(fb.pm[1],fb.pm[2],fb.pm[3],fb.pm[4],fb.pm[5],fb.pm[6],fb.pm[7],fb.pm[8],
-                  (fb.pm[9:189])[ul.PlotCode])
-plot(pred,ul.dbhgrowth)
+pred<-pred.growth(fb.pm[1],fb.pm[2],fb.pm[3],fb.pm[4],fb.pm[5],fb.pm[6],
+                  (fb.pm[7:187])[ul.PlotCode])
+plot(pred,ul.dbhgrowth,main="size-dep-comp fixed")
 abline(0,1)
 cor(pred,ul.dbhgrowth)^2
 
@@ -132,10 +140,284 @@ cor(pred,ul.dbhgrowth)^2
 fb.ci2<-apply(fb.out,2,FUN=quantile,probs=c(0.025,0.5,0.975))
 fb.ci2
 fb.ci3<-as.data.frame(fb.ci2)
-#write.table(fb.ci3,"Parameter estimates growth size-dep-comp only.txt",row.names=F,quote=F,sep="\t")
-#write.table(fb.ci3,"Parameter estimates growth size only.txt",row.names=F,quote=F,sep="\t")
-write.table(fb.ci3,"Parameter estimates growth pot.growth only.txt",row.names=F,quote=F,sep="\t")
+write.table(fb.ci3,"Parameter estimates growth size-dep-comp fixed.txt",row.names=F,quote=F,sep="\t")
 
+##########################################################################################
+##########################################################################################
+##GROWTH MODEL TRIAL WITH SIZE-DEPENDENT COMPETITION EFFECTS
+
+#ADJUST: ADD WD EFFECTS, all parameters as linear functions of WD?
+
+library(filzbach)
+
+#Put values for all subplots into a list
+fDBH<-split(gdata$dbh0,gdata$subplotID)
+
+WD<-split(gdata$WD,gdata$subplotID)
+
+PlotCode<-split(gdata$PlotCode,gdata$subplotID)
+
+dbhgrowth<-split(gdata$dbhgrowth,gdata$subplotID)
+
+ul.WD <- unlist(WD)
+
+comp.fun <- function(focal,target,c2a,c2b) {
+  
+  #   #matrix algebra version
+  #   B <- c(c0,c1,c2)
+  #   X <- cbind(1,focal,target)
+  #   return(plogis(X%*%B)*target)    
+  
+  #c2<-c2a + c2b * WD
+  return((target/21.6)^c2)
+  
+}
+
+subplot.comp <- function(dbhs,c0a,c0b,c1a,c1b,c2a,c2b) {
+  
+  #competition effect matrix
+  comp <- outer(dbhs,dbhs,FUN=comp.fun,c2a,c2b)
+  
+  #growth effect on focal trees
+  #c0<-c0a + c0b * WD
+  #c1<-c1a + c1b * WD
+  fcomp <- exp(-c0 * ((dbhs/21.6)^c1) * rowSums(comp))
+  
+}
+
+#ul.WD <- unlist(WD)
+ul.PlotCode <- unlist(PlotCode)
+ul.dbhgrowth <- unlist(dbhgrowth)
+ul.fDBH <- unlist(fDBH)
+
+#function for predicted growth rates
+pred.growth<-function(g1,g2,s1,c0a,c0b,c1a,c1b,c2a,c2b,E){
+  
+  pot.growth = g1 + g2*ul.WD
+  #pot.growth <- 1
+  
+  #g.size = (ul.DBH/202)^s1
+  g.size<- 1
+  
+  g.comp = unlist(lapply(fDBH,FUN=subplot.comp,c0a,c0b,c1a,c1b,c2a,c2b))
+  #g.comp <- 1
+  
+  pred = pot.growth * E * g.size * g.comp
+  
+  return(pred)
+}
+
+#growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,c4,E_all,E_mean,E_sd,sigma_int,sigma_slope) {
+growth.ll <- function(g1,g2,s1,c0a,c0b,c1a,c1b,c2a,c2b,E_all,E_mean,E_sd,sigma) {
+  
+  g.pred <- pred.growth(g1,g2,s1,c0a,c0b,c1a,c1b,c2a,c2b,E_all[ul.PlotCode])
+  
+  #sigma <- sigma_int + sigma_slope * pred
+  
+  #likelihood
+  g.ll <- sum(dnorm(ul.dbhgrowth,g.pred,sigma,log=T))
+  
+  #parameter hierarchy
+  log_E_hier<-sum(dnorm(E_all,E_mean,E_sd,log=T))
+  if(is.na(log_E_hier)) print(range(E_all))
+  if(is.na(g.ll)) print(range(g.pred))
+  
+  ll <- sum(g.ll) + sum(log_E_hier)
+  #print(ll)
+  
+  return(ll)
+  
+}
+
+#c0 should be positive?
+fb.pars2 <- list(
+  g1 = c(-100,100,1,0,0,1),
+  g2 = c(-100,100,1,0,0,1),
+  s1 = c(1e-6,1,0,0,0,1),       #s1=1 is a linear relation, s1<1=saturating, s1>1 (kind of exponential?)  
+  c0a = c(-100,100,1,0,0,1),
+  c0b = c(-100,100,1,0,0,1),
+  c1a = c(-100,100,0,0,0,1),
+  c1b = c(-100,100,0,0,0,1),
+  c2a = c(-100,100,2,0,0,1),
+  c2b = c(-100,100,2,0,0,1),
+  E_all = c(1e-3,1,1,0,1,0,181),
+  E_mean = c(1e-3,1,1,1,1,1),
+  E_sd = c(1e-3,1,1,1,1,1),
+  sigma = c(1e-3,10,1.0,1,0,1)
+  #sigma_int = c(1e-3,10,1.0,1,0,1),
+  #sigma_slope = c(1e-3,10,1.0,1,0,1)
+)
+
+fb.out.g2<-filzbach(40000,20000,growth.ll,nrow(gdata),fb.pars2)
+df.fb.out.g2<-as.data.frame(fb.out.g2)
+write.table(df.fb.out.g2,"fb.out.g.size-dep-comp WD.txt",row.names=F,quote=F,sep="\t")
+
+#Convergence
+x11(5,5)
+growth.llvec<-function(x) growth.ll(x[1],x[2],x[3],x[4],x[5],x[6],x[7:187],x[188],x[189],x[190])
+fb.out.ll2<-apply(fb.out,1,growth.llvec)
+plot(fb.out.ll2,type="l",main="size-dep-comp WD")
+
+#Calculate goodness of fit
+x11(5,5)
+fb.pm<-colMeans(fb.out)
+pred<-pred.growth(fb.pm[1],fb.pm[2],fb.pm[3],fb.pm[4],fb.pm[5],fb.pm[6],
+                  (fb.pm[7:187])[ul.PlotCode])
+plot(pred,ul.dbhgrowth,main="size-dep-comp WD")
+abline(0,1)
+cor(pred,ul.dbhgrowth)^2
+
+#Calculate credible intervals
+fb.ci2<-apply(fb.out,2,FUN=quantile,probs=c(0.025,0.5,0.975))
+fb.ci2
+fb.ci3<-as.data.frame(fb.ci2)
+write.table(fb.ci3,"Parameter estimates growth size-dep-comp WD.txt",row.names=F,quote=F,sep="\t")
+
+##########################################################################################
+##########################################################################################
+#Growth model with random effect and subplot BA as competition effect 
+
+library(filzbach)
+
+#function for predicted growth rates
+pred.growth<-function(g1,g2,E,s1,s2,c1,c2){
+  
+  pot.growth = g1 + g2*gdata$WD
+  g.size = exp(-0.5*(log(gdata$dbh0/s1)/s2)^2)
+  g.comp = c1 + (1-c1) * exp(-c2*gdata$subplotBA.m2ha)
+  
+  pred = pot.growth * E * g.size * g.comp
+  
+  return(pred)
+}
+
+#log-likelihood function
+#growth.ll <- function (g1,g2,E_all,E_mean,E_sd,s1,s2,c1,c2,sigma_int,sigma_slope){
+growth.ll <- function (g1,g2,E_all,E_mean,E_sd,s1,s2,c1,c2,sigma){
+  
+  pred = pred.growth(g1,g2,E_all[gdata$PlotCode],s1,s2,c1,c2)
+  
+  #sigma <- sigma_int + sigma_slope * pred
+  
+  #likelihood
+  loglike<-sum(dnorm(gdata$dbhgrowth,pred,sigma,log=T))
+  
+  #parameter hierarchy
+  log_E_hier<-sum(dnorm(E_all,E_mean,E_sd,log=T))
+  if(is.na(log_E_hier)) print(range(E_all))
+  if(is.na(loglike)) print(range(pred))
+  
+  return(loglike + log_E_hier)
+  
+}
+
+fb.pars <- list(
+  g1 = c(-100,100,1,0,0,1),
+  g2 = c(-100,100,1,0,0,1),
+  E_all = c(1e-3,1,0.5,1,0,1,181),
+  E_mean = c(1e-3,1,0.5,1,0,1),
+  E_sd = c(1e-3,1,0.5,1,0,1),
+  s1 = c(1e-3,1000,1.0,1,0,1),
+  s2 = c(1e-3,1000,1.0,1,0,1),
+  c1 = c(1e-3,1.0,0.5,1,0,1),      #from 0 to 1 only
+  c2 = c(1e-3,100.0,1.0,1,0,1),
+  sigma = c(1e-3,10,1.0,1,0,1)
+  #sigma_int = c(1e-3,10,1.0,1,0,1),
+  #sigma_slope = c(1e-3,10,1.0,1,0,1)
+)
+
+fb.out<-filzbach(200000,200000,growth.ll,nrow(gdata),fb.pars)
+#write.table(df.fb.out.g,"fb.out.g.txt",row.names=F,quote=F,sep="\t")
+
+#Convergence
+growth.llvec<-function(x) growth.ll(x[1],x[2],x[3:183],x[184],x[185],x[186],x[187],
+                                    x[188],x[189],x[190])
+fb.out.ll2<-apply(fb.out,1,growth.llvec)
+plot(fb.out.ll2,type="l")
+
+#Calculate goodness of fit
+fb.pm<-colMeans(fb.out)
+pred<-pred.growth(fb.pm[1],fb.pm[2],(fb.pm[3:183])[gdata$PlotCode],fb.pm[186],
+                  fb.pm[187],fb.pm[188],fb.pm[189])
+plot(pred,gdata$dbhgrowth)
+cor(pred,gdata$dbhgrowth)^2
+abline(0,1)
+
+#Calculate credible intervals
+fb.ci2<-apply(fb.out,2,FUN=quantile,probs=c(0.025,0.5,0.975))
+fb.ci2
+fb.ci3<-as.data.frame(fb.ci2)
+write.table(fb.ci3,"Parameter estimates growth.txt",row.names=F,quote=F,sep="\t")
+
+##########################################################################################
+##########################################################################################
+##Simple growth model: just a size, competition (subplot BA), and WD effect
+
+library(filzbach)
+
+#function for predicted growth rates
+pred.growth<-function(g1,g2,s1,s2,c1,c2){
+  
+  pot.growth = g1 + g2*gdata$WD
+  #pot.growth = 1
+  
+  #g.size = exp(-0.5*(log(gdata$dbh0/s1)/s2)^2)
+  g.size = 1
+  
+  g.comp = c1 + (1-c1) * exp(-c2*gdata$subplotBA.m2ha)
+  
+  pred = pot.growth * g.size * g.comp
+  
+  return(pred)
+}
+
+#log-likelihood function
+growth.ll <- function (g1,g2,s1,s2,c1,c2,sigma){
+  
+  pred = pred.growth(g1,g2,s1,s2,c1,c2)  
+  
+  #likelihood
+  loglike<-sum(dnorm(gdata$dbhgrowth,pred,sigma,log=T))
+  
+  return(loglike)
+  
+}
+
+fb.pars.g <- list(
+  g1 = c(-10,10,1,0,0,1),
+  g2 = c(-10,10,1,0,0,1),         
+  #s1 = c(1e-3,100.0,1.0,1,0,1),
+  s1 = c(1e-3,1000,1.0,1,1,1),
+  s2 = c(1e-3,1000,1.0,1,1,1),
+  c1 = c(1e-3,1.0,0.5,1,0,1),      #from 0 to 1 only
+  c2 = c(1e-3,100.0,1.0,1,0,1),
+  sigma = c(1e-3,10,1.0,1,0,1)
+)
+
+fb.out.g<-filzbach(60000,20000,growth.ll,nrow(gdata),fb.pars.g)
+#Save output?
+
+#assess convergence (no trend)
+growth.llvec<-function(x) growth.ll(x[1],x[2],x[3],x[4],x[5],x[6],x[7])
+fb.out.ll<-apply(fb.out.g,1,growth.llvec)
+plot(fb.out.ll,type="l")
+
+#calculate goodness of fit
+fb.pm<-colMeans(fb.out.g)
+pred<-pred.growth(fb.pm[1],fb.pm[2],fb.pm[3],fb.pm[4],fb.pm[5],fb.pm[6])
+plot(pred,gdata$dbhgrowth)
+#plot(pred,gdata$dbh0)
+cor(pred,gdata$dbhgrowth)^2
+abline(0,1)
+
+#calculate credible intervals on parameters
+fb.ci<-apply(fb.out.g,2,FUN=quantile,probs=c(0.025,0.5,0.975))
+fb.ci
+fb.ci3<-as.data.frame(fb.ci)
+write.table(fb.ci3,"Parameter estimates growth comp only.txt",row.names=F,quote=F,sep="\t")
+
+##########################################################################################
+##########################################################################################
 ##########################################################################################
 ##########################################################################################
 ##OTHER MODELS IN PROGRESS
@@ -255,139 +537,3 @@ pred.recr<-function(r1,w1){
 
 
 
-##############################################################
-##############################################################
-##############################################################
-##############################################################
-##############################################################
-##############################################################
-##############################################################
-library(filzbach)
-
-#function for predicted growth rates
-pred.growth<-function(g1,g2,E,s1,s2,c1,c2){
-  
-  pot.growth = g1 + g2*gdata$WD
-  g.size = exp(-0.5*(log(gdata$dbh0/s1)/s2)^2)
-  g.comp = c1 + (1-c1) * exp(-c2*gdata$subplotBA.m2ha)
-  
-  pred = pot.growth * E * g.size * g.comp
-  
-  return(pred)
-}
-
-#log-likelihood function
-#growth.ll <- function (g1,g2,E_all,E_mean,E_sd,s1,s2,c1,c2,sigma_int,sigma_slope){
-growth.ll <- function (g1,g2,E_all,E_mean,E_sd,s1,s2,c1,c2,sigma){
-  
-  pred = pred.growth(g1,g2,E_all[gdata$PlotCode],s1,s2,c1,c2)
-  
-  #sigma <- sigma_int + sigma_slope * pred
-  
-  #likelihood
-  loglike<-sum(dnorm(gdata$dbhgrowth,pred,sigma,log=T))
-  
-  #parameter hierarchy
-  log_E_hier<-sum(dnorm(E_all,E_mean,E_sd,log=T))
-  if(is.na(log_E_hier)) print(range(E_all))
-  if(is.na(loglike)) print(range(pred))
-  
-  return(loglike + log_E_hier)
-  
-}
-
-fb.pars <- list(
-  g1 = c(-100,100,1,0,0,1),
-  g2 = c(-100,100,1,0,0,1),
-  E_all = c(1e-3,1,0.5,1,0,1,181),
-  E_mean = c(1e-3,1,0.5,1,0,1),
-  E_sd = c(1e-3,1,0.5,1,0,1),
-  s1 = c(1e-3,1000,1.0,1,0,1),
-  s2 = c(1e-3,1000,1.0,1,0,1),
-  c1 = c(1e-3,1.0,0.5,1,0,1),      #from 0 to 1 only
-  c2 = c(1e-3,100.0,1.0,1,0,1),
-  sigma = c(1e-3,10,1.0,1,0,1)
-  #sigma_int = c(1e-3,10,1.0,1,0,1),
-  #sigma_slope = c(1e-3,10,1.0,1,0,1)
-)
-
-fb.out<-filzbach(200000,200000,growth.ll,nrow(gdata),fb.pars)
-#write.table(df.fb.out.g,"fb.out.g.txt",row.names=F,quote=F,sep="\t")
-
-#Convergence
-growth.llvec<-function(x) growth.ll(x[1],x[2],x[3:183],x[184],x[185],x[186],x[187],
-                                    x[188],x[189],x[190])
-fb.out.ll2<-apply(fb.out,1,growth.llvec)
-plot(fb.out.ll2,type="l")
-
-#Calculate goodness of fit
-fb.pm<-colMeans(fb.out)
-pred<-pred.growth(fb.pm[1],fb.pm[2],(fb.pm[3:183])[gdata$PlotCode],fb.pm[186],
-                  fb.pm[187],fb.pm[188],fb.pm[189])
-plot(pred,gdata$dbhgrowth)
-abline(0,1)
-
-#Calculate credible intervals
-fb.ci2<-apply(fb.out,2,FUN=quantile,probs=c(0.025,0.5,0.975))
-fb.ci2
-fb.ci3<-as.data.frame(fb.ci2)
-write.table(fb.ci3,"Parameter estimates growth.txt",row.names=F,quote=F,sep="\t")
-
-##############################################################
-##Simple growth model: just a size, competition, and WD effect
-
-library(filzbach)
-
-#function for predicted growth rates
-pred.growth<-function(g1,g2,s1,s2,c1,c2){
-  
-  pot.growth = g1 + g2*gdata$WD
-  g.size = exp(-0.5*(log(gdata$dbh0/s1)/s2)^2)
-  g.comp = c1 + (1-c1) * exp(-c2*gdata$subplotBA.m2ha)
-  
-  pred = pot.growth * g.size * g.comp
-  
-  return(pred)
-}
-
-#log-likelihood function
-growth.ll <- function (g1,g2,s1,s2,c1,c2,sigma){
-  
-  pred = pred.growth(g1,g2,s1,s2,c1,c2)  
-  
-  #likelihood
-  loglike<-sum(dnorm(gdata$dbhgrowth,pred,sigma,log=T))
-  
-  return(loglike)
-  
-}
-
-fb.pars.g <- list(
-  g1 = c(-10,10,1,0,0,1),
-  g2 = c(-10,10,1,0,0,1),         
-  #s1 = c(1e-3,100.0,1.0,1,0,1),
-  s1 = c(1e-3,1000,1.0,1,0,1),
-  s2 = c(1e-3,1000,1.0,1,0,1),
-  c1 = c(1e-3,1.0,0.5,1,0,1),      #from 0 to 1 only
-  c2 = c(1e-3,100.0,1.0,1,0,1),
-  sigma = c(1e-3,10,1.0,1,0,1)
-)
-
-fb.out.g<-filzbach(20000,20000,growth.ll,nrow(gdata),fb.pars.g)
-#Save output?
-
-#assess convergence (no trend)
-growth.llvec<-function(x) growth.ll(x[1],x[2],x[3],x[4],x[5],x[6],x[7])
-fb.out.ll<-apply(fb.out,1,growth.llvec)
-plot(fb.out.ll,type="l")
-
-#calculate goodness of fit
-fb.pm<-colMeans(fb.out.g)
-pred<-pred.growth(fb.pm[1],fb.pm[2],fb.pm[3],fb.pm[4],fb.pm[5],fb.pm[6])
-plot(pred,gdata$dbhgrowth)
-plot(pred,gdata$dbh0)
-abline(0,1)
-
-#calculate credible intervals on parameters
-fb.ci<-apply(fb.out,2,FUN=quantile,probs=c(0.025,0.5,0.975))
-fb.ci
