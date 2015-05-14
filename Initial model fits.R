@@ -38,22 +38,28 @@ ul.log.fDBH <- unlist(log.fDBH)
 ##########################################################################################
 ##MODEL 1: potential growth (WD)
 
-comp.fun <- function(focal,target,c2) {
+comp.fun <- function(target,c2) {
+  
+  if (!is.finite(min(exp(c2*target)))) print(range(target))
   
   #return((target/20)^c2)
   return(exp(c2 * target))
+
+  
   
 }
 
 subplot.comp <- function(fdbhs,c0,c1,c2) {
   
   #competition effect matrix
-  comp <- outer(fdbhs,fdbhs,FUN=comp.fun,c2)
+  comp <- outer(fdbhs,rep(c2,length(fdbhs)),FUN=comp.fun)
   
   #growth effect on focal trees
   #fcomp <- exp(-c0 * ((fdbhs/20)^c1) * rowSums(comp))
   fcomp <- exp(-c0 * ((exp(fdbhs))^c1) * rowSums(comp))
+
   
+  return(fcomp)
 }
 
 #function for predicted growth rates
@@ -70,7 +76,8 @@ pred.growth<-function(g1,g2,s1,s2,c0,c1,c2,E){
   #g.comp <- 1
   
   pred = pot.growth * E * g.size * g.comp
-  
+
+  print(c(range(pot.growth),range(g.size),range(g.comp)))
   return(pred)
 }
 
@@ -80,8 +87,8 @@ growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,E_all,E_mean,E_sd,sigma_int,sigma_slo
   #growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,E_all,E_mean,E_sd,sigma) {
   
   g.pred <- pred.growth(g1,g2,s1,s2,c0,c1,c2,E_all[ul.PlotCode])
-  
-  sigma <- sigma_int + sigma_slope * g.pred
+
+  sigma <- sigma_int #+ sigma_slope * g.pred
   #sigma <- g.pred^sigma_exp
   #sigma <- sigma_slope * g.pred
   
@@ -107,7 +114,7 @@ fb.pars <- list(
   s2 = c(1e-3,100,1,0,1,1),
   c0 = c(-100,100,1,0,0,1),      
   c1 = c(-100,100,0,0,0,1),
-  c2 = c(-100,100,2,0,0,1),
+  c2 = c(-5,5,2,0,0,1),
   E_all = c(1e-3,1,1,0,1,0,181),
   E_mean = c(1e-3,1,1,1,1,1),
   E_sd = c(1e-3,1,1,1,1,1),
