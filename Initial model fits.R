@@ -1,3 +1,157 @@
+##############
+#GROWTH MODELS
+
+library(filzbach)
+
+#Load/select/format data
+alldata<-read.table("All data for analysis.txt",h=T)
+
+data<-alldata[alldata$subplot.type!="small",c("PlotCode","subplotID","subplot.area",
+                                              "subplot.no.trees","TreeID",
+                                              "binomial","region","IntervalLength",
+                                              "CensusDate","dbh0","dbhgrowth","BA0","dead",
+                                              "recruit","WD","subplotBA.m2ha")]
+
+gdata<-data[!is.na(data$dbhgrowth) & !is.na(data$dbh0) & !is.na(data$WD) &
+              !is.na(data$subplot.area) & !is.na(data$subplot.no.trees) & 
+              !is.na(data$dead) & data$dbh0>0,]  
+gdata$PlotCode<-factor(gdata$PlotCode)
+gdata$PlotCode<-as.numeric(gdata$PlotCode)
+
+#See below: divide by 20 already
+gdata$log.dbh0<-log(gdata$dbh0/20)
+
+#Put values for all subplots into a list
+fDBH<-split(gdata$dbh0,gdata$subplotID)
+WD<-split(gdata$WD,gdata$subplotID)
+PlotCode<-split(gdata$PlotCode,gdata$subplotID)
+dbhgrowth<-split(gdata$dbhgrowth,gdata$subplotID)
+log.fDBH<-split(gdata$log.dbh0,gdata$subplotID)
+
+ul.WD <- unlist(WD)
+ul.PlotCode <- unlist(PlotCode)
+ul.dbhgrowth <- unlist(dbhgrowth)
+ul.fDBH <- unlist(fDBH)
+ul.log.fDBH <- unlist(log.fDBH)
+
+##########################################################################################
+##########################################################################################
+##MODEL 1: potential growth (WD)
+
+comp.fun <- function(focal,target,c2) {
+  
+  #return((target/20)^c2)
+  return(exp(c2 * target))
+  
+}
+
+subplot.comp <- function(fdbhs,c0,c1,c2) {
+  
+  #competition effect matrix
+  comp <- outer(fdbhs,fdbhs,FUN=comp.fun,c2)
+  
+  #growth effect on focal trees
+  #fcomp <- exp(-c0 * ((fdbhs/20)^c1) * rowSums(comp))
+  fcomp <- exp(-c0 * ((exp(fdbhs))^c1) * rowSums(comp))
+  
+}
+
+#function for predicted growth rates
+pred.growth<-function(g1,g2,s1,s2,c0,c1,c2,E){
+  
+  pot.growth = g1 + g2*ul.WD
+  #pot.growth <- 1
+  
+  g.size = ((ul.fDBH/202)^s1) * exp(-s2 * ul.fDBH)
+  #g.size<- 1
+  
+  #g.comp = unlist(lapply(fDBH,FUN=subplot.comp,c0,c1,c2))
+  g.comp = unlist(lapply(log.fDBH,FUN=subplot.comp,c0,c1,c2))
+  #g.comp <- 1
+  
+  pred = pot.growth * E * g.size * g.comp
+  
+  return(pred)
+}
+
+#growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,E_all,E_mean,E_sd,sigma_exp) {
+growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,E_all,E_mean,E_sd,sigma_int,sigma_slope) {
+  #growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,E_all,E_mean,E_sd,sigma_slope) {
+  #growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,E_all,E_mean,E_sd,sigma) {
+  
+  g.pred <- pred.growth(g1,g2,s1,s2,c0,c1,c2,E_all[ul.PlotCode])
+  
+  sigma <- sigma_int + sigma_slope * g.pred
+  #sigma <- g.pred^sigma_exp
+  #sigma <- sigma_slope * g.pred
+  
+  #likelihood
+  g.ll <- sum(dnorm(ul.dbhgrowth,g.pred,sigma,log=T))
+  
+  #parameter hierarchy
+  log_E_hier<-sum(dnorm(E_all,E_mean,E_sd,log=T))
+  if(is.na(log_E_hier)) print(range(E_all))
+  if(is.na(g.ll)) print(range(g.pred))
+  
+  ll <- sum(g.ll) + sum(log_E_hier)
+  #print(ll)
+  
+  return(ll)
+  
+}
+
+fb.pars <- list(
+  g1 = c(-100,100,1,0,0,1),
+  g2 = c(-100,100,1,0,0,1),
+  s1 = c(1e-3,100,0,0,1,1),       #s1=1 is a linear relation, s1<1=saturating, s1>1 (kind of exponential?)  
+  s2 = c(1e-3,100,1,0,1,1),
+  c0 = c(-100,100,1,0,0,1),      
+  c1 = c(-100,100,0,0,0,1),
+  c2 = c(-100,100,2,0,0,1),
+  E_all = c(1e-3,1,1,0,1,0,181),
+  E_mean = c(1e-3,1,1,1,1,1),
+  E_sd = c(1e-3,1,1,1,1,1),
+  #sigma = c(1e-3,10,1,1,0,1)
+  sigma_int = c(1e-3,10,1,1,0,1),
+  sigma_slope = c(1e-3,10,1,1,0,1)
+  #sigma_exp = c(1,10,1,1,0,1)
+)
+
+fb.out<-filzbach(20000,5000,growth.ll,nrow(gdata),fb.pars)
+df.fb.out<-as.data.frame(fb.out)
+write.table(df.fb.out,"FB output model 1.txt",row.names=F,quote=F,sep="\t")
+
+final_out<-read.table(paste("C:/Users/rozendad/Dropbox/Current projects/UofR/ForestDynamics model runs/workspace","Default_MCMC_final_out.txt",sep="/"),h=T)
+write.table(final_out,"Final_out model 1.txt",row.names=F,quote=F,sep="\t")
+
+#Convergence
+pdf("Model 1.pdf")
+par(mfrow=c(1,2),mar=c(5,4,1,1))
+growth.llvec<-function(x) growth.ll(x[1],x[2],x[3],x[4],x[5],x[6],x[7],x[8:188],x[189],x[190],x[191],x[192])
+fb.out.ll<-apply(fb.out,1,growth.llvec)
+plot(fb.out.ll,type="l",main="40000/20000")
+
+#Calculate goodness of fit
+fb.pm<-colMeans(fb.out)
+pred<-pred.growth(fb.pm[1],fb.pm[2],fb.pm[3],fb.pm[4],fb.pm[5],fb.pm[6],fb.pm[7],
+                  (fb.pm[8:188])[ul.PlotCode])
+plot(pred,ul.dbhgrowth,main=paste("r2=",cor(pred,ul.dbhgrowth)^2)
+     abline(0,1)
+     
+     dev.off()
+     
+     #Calculate credible intervals
+     fb.ci<-apply(fb.out,2,FUN=quantile,probs=c(0.025,0.5,0.975))
+     df.fb.ci<-as.data.frame(fb.ci)
+     write.table(df.fb.ci,"Parameters model 1.txt",row.names=F,quote=F,sep="\t")
+     
+########################################################################################
+########################################################################################
+########################################################################################
+########################################################################################
+########################################################################################
+########################################################################################
+
 #Initial models for growth, mortality, and recruitment
 
 #Load/select/format data
@@ -43,9 +197,15 @@ comp.fun <- function(focal,target,c2) {
   #   X <- cbind(1,focal,target)
   #   return(plogis(X%*%B)*target)    
   
-  return((target/21.6)^c2)
+  return((target/20)^c2)
     
 }
+
+#comp.fun <- function(c2,target) {
+   
+#  return((target/20)^c2)
+  
+#}
 
 subplot.comp <- function(dbhs,c0,c1,c2) {
   
@@ -53,7 +213,7 @@ subplot.comp <- function(dbhs,c0,c1,c2) {
   comp <- outer(dbhs,dbhs,FUN=comp.fun,c2)
   
   #growth effect on focal trees
-  fcomp <- exp(-c0 * ((dbhs/21.6)^c1) * rowSums(comp))
+  fcomp <- exp(-c0 * ((dbhs/20)^c1) * rowSums(comp))
   
 }
 
@@ -63,13 +223,13 @@ ul.dbhgrowth <- unlist(dbhgrowth)
 ul.fDBH <- unlist(fDBH)
 
 #function for predicted growth rates
-pred.growth<-function(g1,g2,s1,c0,c1,c2,E){
+pred.growth<-function(g1,g2,s1,s2,c0,c1,c2,E){
   
   pot.growth = g1 + g2*ul.WD
   #pot.growth <- 1
   
-  #g.size = (ul.DBH/21.6)^s1
-  g.size<- 1
+  g.size = ((ul.fDBH/202)^s1) * exp(-s2 * ul.fDBH)
+  #g.size<- 1
   
   g.comp = unlist(lapply(fDBH,FUN=subplot.comp,c0,c1,c2))
   #g.comp <- 1
@@ -79,12 +239,12 @@ pred.growth<-function(g1,g2,s1,c0,c1,c2,E){
   return(pred)
 }
 
-#growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,c4,E_all,E_mean,E_sd,sigma_int,sigma_slope) {
-growth.ll <- function(g1,g2,s1,c0,c1,c2,E_all,E_mean,E_sd,sigma) {
+growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,E_all,E_mean,E_sd,sigma_int,sigma_slope) {
+#growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,E_all,E_mean,E_sd,sigma) {
   
-  g.pred <- pred.growth(g1,g2,s1,c0,c1,c2,E_all[ul.PlotCode])
+  g.pred <- pred.growth(g1,g2,s1,s2,c0,c1,c2,E_all[ul.PlotCode])
     
-  #sigma <- sigma_int + sigma_slope * pred
+  sigma <- sigma_int + sigma_slope * g.pred
   
   #likelihood
   g.ll <- sum(dnorm(ul.dbhgrowth,g.pred,sigma,log=T))
@@ -101,20 +261,20 @@ growth.ll <- function(g1,g2,s1,c0,c1,c2,E_all,E_mean,E_sd,sigma) {
   
 }
 
-#c0 should be positive?
 fb.pars2 <- list(
-  g1 = c(-100,100,1,0,0,1),
-  g2 = c(-100,100,1,0,0,1),
-  s1 = c(1e-6,1,0,0,0,1),       #s1=1 is a linear relation, s1<1=saturating, s1>1 (kind of exponential?)  
-  c0 = c(-100,100,1,0,0,1),      
+  g1 = c(-100,100,1,0,1,1),
+  g2 = c(-100,100,1,0,1,1),
+  s1 = c(1e-6,100,0,0,0,1),       #s1=1 is a linear relation, s1<1=saturating, s1>1 (kind of exponential?)  
+  s2 = c(-100,100,0,0,0,1),
+  c0 = c(-100,100,1,0,1,1),      
   c1 = c(-100,100,0,0,1,1),
   c2 = c(-100,100,2,0,1,1),
   E_all = c(1e-3,1,1,0,1,0,181),
   E_mean = c(1e-3,1,1,1,1,1),
   E_sd = c(1e-3,1,1,1,1,1),
-  sigma = c(1e-3,10,1.0,1,0,1)
-  #sigma_int = c(1e-3,10,1.0,1,0,1),
-  #sigma_slope = c(1e-3,10,1.0,1,0,1)
+  #sigma = c(1e-3,10,1.0,1,0,1)
+  sigma_int = c(1e-3,10,1,1,0,1),
+  sigma_slope = c(1e-3,10,1,1,0,1)
 )
 
 fb.out.g2<-filzbach(40000,20000,growth.ll,nrow(gdata),fb.pars2)
