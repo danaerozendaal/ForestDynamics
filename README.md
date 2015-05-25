@@ -11,6 +11,7 @@ Files:
 
 ##### R Scripts
 * Initial model fits
+* Initial model fits mortality
 * Data formatting script
 * Format Chave database
 * Exploratory graphs
