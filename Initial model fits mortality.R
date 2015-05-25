@@ -56,27 +56,22 @@ pred.mort<-function(m0,m1,s1,s3,s4,c1,c2){
 
 mort.ll<-function(m0,m1,s1,s3,s4,c1,c2){
   
-  ll=numeric()
+
+  #probability of mortality
+  p.int<-pred.mort(m0,m1,s1,s3,s4,c1,c2)
   
-  #calculate likelihood for each tree
-  for (i in nrow(mdata)){
+  #assign status (dead/alive) and calculate likelihood
+  ll <- log(ifelse(mdata$dead,p.int,1-p.int))
+      
+  #sum likelihood per tree
+  ll_tot<-sum(ll)
+  
+  if(is.na(ll_tot)) print(range(p.int))
+  #if(is.na(p.int)) print("NA")
+  
+  return(ll_tot)
     
-    #probability of mortality
-    p.int<-pred.mort(m0,m1,s1,s3,s4,c1,c2)
-    
-    #assign status (dead/alive) and calculate likelihood
-    if (mdata[i,]$dead==1) ll[i]<-dbinom(data[i,]$dead,size=1,prob=p.int[i],log=T)
-    else ll[i]<-dbinom(data[i,]$dead,size=1,prob=1-p.int[i],log=T)
-    
-    #sum likelihood per tree
-    ll_tot<-sum(ll)
-    
-    if(is.na(ll_tot)) print(range(p.int))
-    #if(is.na(p.int)) print("NA")
-    
-    return(ll_tot)
-    
-  }
+  
 }
 
 fb.pars.m<-list(
