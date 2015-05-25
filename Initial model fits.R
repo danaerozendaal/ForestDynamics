@@ -24,6 +24,9 @@ gdata$PlotCode<-as.numeric(gdata$PlotCode)
 gdata$log.dbh0<-log(gdata$dbh0/20)
 
 #Put values for all subplots into a list
+split.gdata <- split(gdata,gdata$subplotID)
+
+
 fDBH<-split(gdata$dbh0,gdata$subplotID)
 fWD<-split(gdata$WD,gdata$subplotID)
 PlotCode<-split(gdata$PlotCode,gdata$subplotID)
@@ -64,17 +67,19 @@ comp.fun <- function(target,c2) {
 
 #subplot.comp <- function(dbhs,c0,c1,c2) {
 #subplot.comp <- function(dbhs,c0,c1,c2_int,c2_slope,WD) {
-subplot.comp <- function(dbhs,c0,c1,c2_int,c2_slope) {
+subplot.comp <- function(subplot,c0,c1,c2_int,c2_slope) {
+  
+  
   
   #competition effect matrix
   #comp <- outer(dbhs,dbhs,FUN=comp.fun,c2)
   #comp <- outer(dbhs,rep(c2,length(dbhs)),FUN=comp.fun)
-  comp <- outer(dbhs,c2_int+c2_slope*ul.fWD,FUN=comp.fun)
+  comp <- outer(subplot$log.dbh0,c2_int+c2_slope*subplot$WD,FUN=comp.fun)
   
   #growth effect on focal trees
   #fcomp <- exp(-c0 * ((dbhs/20)^c1) * rowSums(comp))
   #fcomp <- exp(-(c0_int + c0_slope*ul.fWD) * ((exp(dbhs))^(c1_int + c1_slope*ul.fWD)) * rowSums(comp))   #log dbh to avoid exponent in comp.fun
-  fcomp <- exp(-c0 * ((exp(dbhs))^c1) * rowSums(comp))   #log dbh to avoid exponent in comp.fun
+  fcomp <- exp(-c0 * ((exp(subplot$log.dbh0))^c1) * rowSums(comp))   #log dbh to avoid exponent in comp.fun
     
 }
 
@@ -98,7 +103,7 @@ pred.growth<-function(g0,g1,s1_0,s1_1,s2_0,s2_1,c0,c1,c2,E){
   #g.size <- 1
   
   #g.comp = unlist(lapply(fDBH,FUN=subplot.comp,c0,c1,c2))
-  g.comp = unlist(lapply(log.fDBH,FUN=subplot.comp,c0,c1,c2_int,c2_slope))
+  g.comp = unlist(lapply(split.gdata,FUN=subplot.comp,c0,c1,c2_int,c2_slope))
   #g.comp <- 1
   
   pred = pot.growth * E * g.size * g.comp
