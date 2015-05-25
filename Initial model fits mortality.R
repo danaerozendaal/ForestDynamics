@@ -43,6 +43,8 @@ pred.mort<-function(m0,m1,s1,s3,s4,c1,c2){
   #m.comp <- c1 + (1 - c1) * exp(-c2 * mdata$subplotBA.m2ha)
   m.comp <- 1
   
+  if(is.na(p.int)) print("NA")
+  
   #k <- pot.mort * m.size * m.comp
   #p.ann <- 1 / (1+exp(-k))
   p.ann <- 1 / (1 + (pot.longevity * m.size * m.comp)) 
@@ -61,18 +63,21 @@ mort.ll<-function(m0,m1,s1,s3,s4,c1,c2){
   #calculate likelihood for each tree
   for (i in nrow(mdata)){
     
+    if(is.na(p.int)) print("NA")
+    
     #probability of mortality
     p.int<-pred.mort(m0,m1,s1,s3,s4,c1,c2)
     
     #assign status (dead/alive) and calculate likelihood
-    if (mdata[i,]$dead==1) ll[i]<-dbinom(data[i,]$dead,size=1,prob=p.int[i],log=T)
-    else ll[i]<-dbinom(data[i,]$dead,size=1,prob=1-p.int[i],log=T)
+    if (mdata[i,]$dead==1) ll[i]<-dbinom(mdata[i,]$dead,size=1,prob=p.int[i],log=T)
+    else ll[i]<-dbinom(mdata[i,]$dead,size=1,prob=1-p.int[i],log=T)
+    
+    if(is.na(ll[i])) print(p.int)
     
     #sum likelihood per tree
     ll_tot<-sum(ll)
     
     if(is.na(ll_tot)) print(range(p.int))
-    #if(is.na(p.int)) print("NA")
     
     return(ll_tot)
     
