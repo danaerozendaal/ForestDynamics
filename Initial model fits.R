@@ -36,83 +36,84 @@ ul.dbhgrowth <- unlist(dbhgrowth)
 ul.fDBH <- unlist(fDBH)
 ul.log.fDBH <- unlist(log.fDBH)
 
+min.fWD <- min(ul.fWD)
+max.fWD <- max(ul.fWD)
+
+#g0 = pot growth at minimum WD
+#g1 = pot growth at maximum WD
+
 ##########################################################################################
 ##########################################################################################
 ##GROWTH MODEL (not working yet, competition dependent on WD)
 
-comp.fun <- function(target,c2_int,c2_slope,WD) {
+#c0, c1 also as a function of WD
+#s1 (just positive?), s2 (only positive) as a function of WD
+
+#comp.fun <- function(target,c2_int,c2_slope,WD) {
+comp.fun <- function(target,c2) {
 #comp.fun <- function(focal,target,c2) {
   
   if (!is.finite(min(exp(c2*target)))) print(range(target))
   
-  c2 <- c2_int + c2_slope * WD
+  #c2 <- c2_int + c2_slope * WD
   
   #return((target/20)^c2)
   return(exp(c2 * target))
   
 }
 
-subplot.comp <- function(dbhs,c0,c1,c2_int,c2_slope,WD) {
+#subplot.comp <- function(dbhs,c0,c1,c2) {
+#subplot.comp <- function(dbhs,c0,c1,c2_int,c2_slope,WD) {
+subplot.comp <- function(dbhs,c0,c1,c2_int,c2_slope) {
   
   #competition effect matrix
   #comp <- outer(dbhs,dbhs,FUN=comp.fun,c2)
-  comp <- outer(dbhs,rep(c2,length(dbhs)),FUN=comp.fun,c2_int,c2_slope,WD)
+  #comp <- outer(dbhs,rep(c2,length(dbhs)),FUN=comp.fun)
+  comp <- outer(dbhs,c2_int+c2_slope*ul.fWD,FUN=comp.fun)
   
   #growth effect on focal trees
   #fcomp <- exp(-c0 * ((dbhs/20)^c1) * rowSums(comp))
+  #fcomp <- exp(-(c0_int + c0_slope*ul.fWD) * ((exp(dbhs))^(c1_int + c1_slope*ul.fWD)) * rowSums(comp))   #log dbh to avoid exponent in comp.fun
   fcomp <- exp(-c0 * ((exp(dbhs))^c1) * rowSums(comp))   #log dbh to avoid exponent in comp.fun
-  
-  #if (!is.finite(max(fcomp))) print(range((dbhs/20)^c1)) #range looks fine
-  
+    
 }
 
-      ##TRIAL
-      subplot.comp <- function(dbhs,WD,c0,c1,c2_int,c2_slope) {
-  
-      #competition effect matrix
-      #comp <- outer(dbhs,dbhs,FUN=comp.fun,c2)
-      comp <- outer(dbhs,exp((c2_int + c2_slope * WD) * dbhs))
-  
-      #growth effect on focal trees
-      #fcomp <- exp(-c0 * ((dbhs/20)^c1) * rowSums(comp))
-      fcomp <- exp(-c0 * ((exp(dbhs))^c1) * rowSums(comp))   #log dbh to avoid exponent in comp.fun
-  
-      #if (!is.finite(max(fcomp))) print(range((dbhs/20)^c1)) #range looks fine
-  
-     }
-
 #function for predicted growth rates
-pred.growth<-function(g0,g1,s1,s2,c0,c1,c2_int,c2_slope,E){
+pred.growth<-function(g0,g1,s1_0,s1_1,s2_0,s2_1,c0,c1,c2,E){
+#pred.growth<-function(g0,g1,s1,s2,c0,c1,c2_int,c2_slope,E){
   
-  #g0 = pot growth at minimum WD
-  #g1 = pot growth at maximum WD
-  
-  WD_slope <- (g1 - g0)/(max(ul.fWD)-min(ul.fWD))
-  WD_int <- g0 - (WD_slope * (min(ul.fWD)))
+  WD_slope <- (g1 - g0)/(max.fWD - min.fWD)
+  WD_int <- g0 - (WD_slope * min.fWD)
   
   pot.growth = WD_int + (WD_slope * ul.fWD)
   #pot.growth <- 1
   
+  s1_slope <- (s1_1 - s1_0)/(max.fWD - min.fWD)
+  s1_int <- s1_0 - (s1_slope * min.fWD)
+  s2_slope <- (s2_1 - s2_0)/(max.fWD - min.fWD)
+  s2_int <- s2_0 - (s2_slope * min.fWD)
+  
+  g.size = ((ul.fDBH/202)^(s1_int + (s1_slope * ul.fWD))) * exp(-(s2_int + (s2_slope * ul.fWD)) * ul.fDBH)
   #g.size = ((ul.fDBH/202)^s1) * exp(-s2 * ul.fDBH)
-  g.size <- 1
+  #g.size <- 1
   
   #g.comp = unlist(lapply(fDBH,FUN=subplot.comp,c0,c1,c2))
-  g.comp = unlist(lapply(log.fDBH,fWD,FUN=subplot.comp,c0,c1,c2_int,c2_slope))
+  g.comp = unlist(lapply(log.fDBH,FUN=subplot.comp,c0,c1,c2_int,c2_slope))
   #g.comp <- 1
   
   pred = pot.growth * E * g.size * g.comp
   
   #print(c(range(pot.growth),range(g.comp)))
-  #print(c(range(pot.growth),range(g.size),range(g.comp)))
-  #print(c(range(pot.growth),g0.1,g1.1,WD_slope,WD_int))
+  print(c(range(pot.growth),range(g.size),range(g.comp)))
+  #print(c(range(pot.growth),g0,g1,WD_slope,WD_int))
   
   return(pred)
 }
 
-growth.ll <- function(g0,g1,s1,s2,c0,c1,c2_int,c2_slope,E_all,E_mean,E_sd,sigma_int,sigma_slope) {
-  #growth.ll <- function(g1,g2,s1,s2,c0,c1,c2,E_all,E_mean,E_sd,sigma) {
+#growth.ll <- function(g0,g1,s1_0,s1_1,s2_0,s2_1,c0,c1,c2,E_all,E_mean,E_sd,sigma_int,sigma_slope) {
+growth.ll <- function(g0,g1,s1_0,s1_1,s2_0,s2_1,c0,c1,c2_int,c2_slope,E_all,E_mean,E_sd,sigma_int,sigma_slope) {
   
-  g.pred <- pred.growth(g0,g1,s1,s2,c0,c1,c2_int,c2_slope,E_all[ul.PlotCode])
+  g.pred <- pred.growth(g0,g1,s1_0,s1_1,s2_0,s2_1,c0,c2_int,c2_slope,E_all[ul.PlotCode])
   
   sigma <- sigma_int + sigma_slope * g.pred
   
@@ -134,10 +135,13 @@ growth.ll <- function(g0,g1,s1,s2,c0,c1,c2_int,c2_slope,E_all,E_mean,E_sd,sigma_
 fb.pars <- list(
   g0 = c(1e-3,100,1,1,0,1),
   g1 = c(1e-3,100,1,1,0,1),
-  s1 = c(1e-6,10,1,0,1,1),  
-  s2 = c(1e-6,50,1,0,1,1),
+  s1_0 = c(1e-6,3,1,0,1,1),  
+  s1_1 = c(1e-6,3,1,0,1,1), 
+  s2_0 = c(1e-6,10,1,0,1,1),
+  s2_1 = c(1e-6,10,1,0,1,1),
   c0 = c(-50,50,1,0,0,1),      
   c1 = c(-5,5,0,0,0,1),
+  #c2 = c(-5,5,2,0,0,1),
   c2_int = c(-5,5,2,0,0,1),
   c2_slope = c(-5,5,2,0,0,1),
   E_all = c(1e-3,1,1,0,1,0,181),
@@ -177,8 +181,7 @@ write.table(df.fb.ci,"Parameters model 1.txt",row.names=F,quote=F,sep="\t")
 
 ##########################################################################################
 ##########################################################################################
-##GROWTH MODEL (seems to work, ~competition effect, competition not dependent on WD)
-##constrain c0 to positive.
+##GROWTH MODEL (with competition, but competition independent of WD)
 
 comp.fun <- function(target,c2) {
   #comp.fun <- function(focal,target,c2) {
@@ -196,15 +199,12 @@ subplot.comp <- function(dbhs,c0,c1,c2) {
   #comp <- outer(dbhs,dbhs,FUN=comp.fun,c2)
   comp <- outer(dbhs,rep(c2,length(dbhs)),FUN=comp.fun)
   
-  #the max of the rowSums become large (~3000-40000)
-  #but (dbhs/20)^c1 becomes NaN
   #if (!is.finite(max(exp(-c0 * ((exp(dbhs))^c1) * rowSums(comp))))) print(c(range((exp(dbhs))^c1),range(rowSums(comp))) #range looks fine
   #if (!is.finite(max(exp(-c0 * ((exp(dbhs))^c1) * rowSums(comp))))) print(range(exp(dbhs)))
   
-  
   #growth effect on focal trees
   #fcomp <- exp(-c0 * ((dbhs/20)^c1) * rowSums(comp))
-  fcomp <- exp(-c0 * ((exp(dbhs))^c1) * rowSums(comp))   #log dbh to avoid exponent in comp.fun...
+  fcomp <- exp(-c0 * ((exp(dbhs))^c1) * rowSums(comp))   #log dbh to avoid exponent in comp.fun
   
 }
 
@@ -220,8 +220,8 @@ pred.growth<-function(g0,g1,s1,s2,c0,c1,c2,E){
   pot.growth = WD_int + (WD_slope * ul.fWD)
   #pot.growth <- 1
   
-  #g.size = ((ul.fDBH/202)^s1) * exp(-s2 * ul.fDBH)
-  g.size <- 1
+  g.size = ((ul.fDBH/202)^s1) * exp(-s2 * ul.fDBH)
+  #g.size <- 1
   
   #g.comp = unlist(lapply(fDBH,FUN=subplot.comp,c0,c1,c2))
   g.comp = unlist(lapply(log.fDBH,FUN=subplot.comp,c0,c1,c2))
@@ -262,14 +262,14 @@ growth.ll <- function(g0,g1,s1,s2,c0,c1,c2,E_all,E_mean,E_sd,sigma_int,sigma_slo
 fb.pars <- list(
   g0 = c(1e-3,100,1,1,0,1),
   g1 = c(1e-3,100,1,1,0,1),
-  s1 = c(1e-6,10,1,0,1,1),  
-  s2 = c(1e-6,50,1,0,1,1),
-  c0 = c(1e-3,50,1,0,0,1),      
-  c1 = c(-5,5,0,0,0,1),
-  c2 = c(-5,5,2,0,0,1),
-  E_all = c(1e-3,1,1,0,1,0,181),
-  E_mean = c(1e-3,1,1,1,1,1),
-  E_sd = c(1e-3,1,1,1,1,1),
+  s1 = c(1e-6,10,1,0,0,1),  
+  s2 = c(1e-6,50,1,0,0,1),
+  c0 = c(-5,50,1,0,0,1),      
+  c1 = c(-4,4,0,0,0,1),
+  c2 = c(-4,4,2,0,0,1),
+  E_all = c(1e-3,1,1,0,0,0,181),
+  E_mean = c(1e-3,1,1,1,0,1),
+  E_sd = c(1e-3,1,1,1,0,1),
   sigma_int = c(1e-3,10,1,1,0,1),
   sigma_slope = c(1e-3,10,1,1,0,1)
 )
@@ -734,125 +734,6 @@ fb.ci<-apply(fb.out.g,2,FUN=quantile,probs=c(0.025,0.5,0.975))
 fb.ci
 fb.ci3<-as.data.frame(fb.ci)
 write.table(fb.ci3,"Parameter estimates growth comp only.txt",row.names=F,quote=F,sep="\t")
-
-##########################################################################################
-##########################################################################################
-##########################################################################################
-##########################################################################################
-##OTHER MODELS IN PROGRESS
-
-library(filzbach)
-
-##MORTALITY
-##simple model based on dbh only
-##data$dead==1, dead.
-#4 trees with dbh0=0, now excluded.
-
-mdata<-data[!is.na(data$dbh0) & data$dbh0>0 & !is.na(data$WD) &
-              !is.na(data$subplot.area) & !is.na(data$subplot.no.trees) & 
-              !is.na(data$dead),]  #check still!
-
-#function for predicted mortality rates
-pred.mort<-function(pm,s1,s3,s4,c1,c2){
-  
-  pot.mort <- pm
-  
-  #s2 <- log(99)/(s4 * (1-s3))
-  #m.size <- ((mdata$dbh0/10)^s1)/(1 + exp(s2 * (mdata$dbh0 - s3 * s4)))
-  m.size <- 1
-  
-  m.comp <- c1 + (1 - c1) * exp(-c2 * mdata$subplotBA.m2ha)
-  #m.comp <- 1
-  
-  k <- pot.mort * m.size * m.comp
-  p.ann <- 1 / (1+exp(-k))
-  p.int <- 1 - ((1-p.ann)^mdata$IntervalLength)
-  
-  p.int[p.int<0.0001] <- 0.0001
-  p.int[p.int>0.9999] <- 0.9999
-  
-  return(p.int)
-}
-
-mort.ll<-function(pm,s1,s3,s4,c1,c2){
-  
-  ll=numeric()
-  
-  #calculate likelihood for each tree
-  for (i in nrow(mdata)){
-    
-    #probability of mortality
-    p.int<-pred.mort(pm,s1,s3,s4,c1,c2)
-    
-    #assign status (dead/alive) and calculate likelihood
-    if (mdata[i,]$dead==1) ll[i]<-dbinom(data[i,]$dead,size=1,prob=p.int[i],log=T)
-    else ll[i]<-dbinom(data[i,]$dead,size=1,prob=1-p.int[i],log=T)
-    
-    #sum likelihood per tree
-    ll_tot<-sum(ll)
-    
-    if(is.na(ll_tot)) print(range(p.int))
-    #if(is.na(p.int)) print("NA")
-    
-    return(ll_tot)
-    
-  }
-}
-
-fb.pars.m<-list(
-  pm = c(1e-3,1000,1,1,0,1),
-  s1 = c(1e-3,10,1,1,0,1),
-  s3 = c(1e-3,100,1,1,0,1),
-  s4 = c(1e-3,1,1,0,0,1),
-  c1 = c(1e-3,1.0,1,1,1,1),      #from 0 to 1 only
-  c2 = c(1e-3,100,1,1,1,1)
-)  
-
-fb.out.m<-filzbach(20000,20000,mort.ll,nrow(mdata),fb.pars.m)
-
-##########################################################################################
-##RECRUITMENT
-
-#Number of stems/ha/yr per subplot
-#Potential rate * landscape (plot) effect. A measure of WD? Spp not possible
-
-library(filzbach)
-
-#Calculate recruitment rate
-rdata<-aggregate(data$recruit,list(data$PlotCode,data$subplotID,data$subplot.area,
-                                   data$subplot.no.trees,data$region,data$IntervalLength,
-                                   data$CensusDate,data$subplotBA.m2ha),sum,na.rm=T)
-names(rdata)<-c("PlotCode","subplotID","subplot.area","subplot.no.trees",
-                "region","IntervalLength","CensusDate","subplotBA.m2ha","sum.recruits")
-rdata$recr.rate<-rdata$sum.recruits/rdata$IntervalLength
-
-meanWD<-aggregate(data$WD,list(data$PlotCode),mean,na.rm=T)
-names(meanWD)<-c("PlotCode","meanWD")
-
-rdata2<-merge(rdata,meanWD,all.x=T)
-
-hist(rdata2$recr.rate,breaks=100)
-
-#function for predicted recruitment rates
-pred.recr<-function(r1,w1){
-  
-  #potential recruitment could be a function of WD: no (aggregated over stems...)
-  pot.recr = r1
-  
-  #landscape WD, ranging from 0 to 1, or absolute cwm?
-  #Add still
-  r.LWD = min(1,(w1 + (1-w1)))
-  
-  #subplot BA?
-  #Add? Same structure as for WD, but probably not a large effect for 10 cm trees
-  #Although it may work through in growth.
-  
-  pred = pot.recr * r.LWD
-  
-  return(pred)
-}
-
-#likelihood: GAMMA OR ZERO-INFLATED GAMMA?
 
 
 
