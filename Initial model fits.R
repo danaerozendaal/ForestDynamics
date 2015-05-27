@@ -20,113 +20,84 @@ gdata$subplotID<-as.numeric(gdata$subplotID)
 gdata$PlotCode<-factor(gdata$PlotCode)
 gdata$PlotCode<-as.numeric(gdata$PlotCode)
 
-#See below: divide by 20 already
+#Calulate ln(dbh/20)
 gdata$log.dbh0<-log(gdata$dbh0/20)
 
-#Put values for all subplots into a list
+#Put values for all subplots into dataframes in a list
 split.gdata <- split(gdata,gdata$subplotID)
-
-fDBH<-split(gdata$dbh0,gdata$subplotID)
-fWD<-split(gdata$WD,gdata$subplotID)
-PlotCode<-split(gdata$PlotCode,gdata$subplotID)
-dbhgrowth<-split(gdata$dbhgrowth,gdata$subplotID)
-log.fDBH<-split(gdata$log.dbh0,gdata$subplotID)
-
-#ul.fWD <- unlist(fWD)
-#ul.PlotCode <- unlist(PlotCode)
-#ul.dbhgrowth <- unlist(dbhgrowth)
-#ul.fDBH <- unlist(fDBH)
-#ul.log.fDBH <- unlist(log.fDBH)
 
 min.WD <- min(gdata$WD)
 max.WD <- max(gdata$WD)
-
-#g0 = pot growth at minimum WD
-#g1 = pot growth at maximum WD
 
 ##########################################################################################
 ##########################################################################################
 ##GROWTH MODEL (not working yet, competition dependent on WD)
 
-#c0, c1 also as a function of WD
-#s1 (just positive?), s2 (only positive) as a function of WD
-
 comp.fun <- function(c2,target) {
   
   #if (!is.finite(min(exp(c2*target)))) print(range(target))
-
-  #return((target/20)^c2)
   return(exp(c2 * target))
   
 }
 
-#subplot.comp <- function(dbhs,c0,c1,c2) {
-subplot.comp <- function(subplot,c0,c1,c2_int,c2_slope) {
-#subplot.comp <- function(dbhs,c0,c1,c2_int,c2_slope) {
-    
+subplot.comp <- function(subplot,c0_minWD,c0_maxWD,c1_minWD,c1_maxWD,c2_minWD,c2_maxWD) {
+  
+  c0_slope <- (c0_maxWD - c0_minWD)/(max.WD - min.WD)
+  c0_int <- c0_minWD - (c0_slope * min.WD)
+  
+  c1_slope <- (c1_maxWD - c1_minWD)/(max.WD - min.WD)
+  c1_int <- c1_minWD - (c1_slope * min.WD) 
+  
+  c2_slope <- (c2_maxWD - c2_minWD)/(max.WD - min.WD)
+  c2_int <- c2_minWD - (c2_slope * min.WD)
+  
   #competition effect matrix
-  #comp <- outer(dbhs,rep(c2,length(dbhs)),FUN=comp.fun)
-  #print(length(dbhs))
-  
-  c2.wd <- c2_int+c2_slope*subplot$WD
-  
-  comp <- outer(c2.wd,subplot$log.dbh0,FUN=comp.fun)
-  #comp <- outer(subplot$log.dbh0,c2_int+c2_slope*(lapply(split.gdata,"[[","WD")),FUN=comp.fun)
-  #comp <- outer(dbhs,c2_int+c2_slope*fWD,FUN=comp.fun)
+  c2_WD <- c2_int+c2_slope*subplot$WD  
+  comp <- outer(c2_WD,subplot$log.dbh0,FUN=comp.fun)
   
   diag(comp) <- 0
-  
-  print(comp)
-  
+  #print(comp)
   
   #growth effect on focal trees
-  #fcomp <- exp(-c0 * ((dbhs/20)^c1) * rowSums(comp))
-  #fcomp <- exp(-(c0_int + c0_slope*ul.fWD) * ((exp(dbhs))^(c1_int + c1_slope*ul.fWD)) * rowSums(comp))   #log dbh to avoid exponent in comp.fun
-  fcomp <- exp(-c0 * ((exp(subplot$log.dbh0*c1) * rowSums(comp))   #log dbh to avoid exponent in comp.fun
-  #fcomp <- exp(-c0 * ((exp(dbhs))^c1) * rowSums(comp[,-1]))   #remove first column (is focal tree, I think?)
-    
+  c0_WD <- c0_int + c0_slope*subplot$WD
+  c1_WD <- c1_int + c1_slope*subplot$WD
+  fcomp <- exp(-(c0_WD) * (exp(subplot$log.dbh0*c1_WD)) * rowSums(comp))   #log dbh to avoid exponent in comp.fun
+  
 }
 
 #function for predicted growth rates
-#pred.growth<-function(g0,g1,s1_0,s1_1,s2_0,s2_1,c0,c1,c2,E){
-pred.growth<-function(g0,g1,s1,s2,c0,c1,c2_int,c2_slope,E){
-#pred.growth<-function(g0,g1,s1,s2,c0,c1,c2,E){
+pred.growth<-function(pg_minWD,pg_maxWD,s1_minWD,s1_maxWD,s2_minWD,s2_maxWD,c0_minWD,c0_maxWD,c1_minWD,c1_maxWD,c2_minWD,c2_maxWD,E){
   
-  WD_slope <- (g1 - g0)/(max.WD - min.WD)
-  WD_int <- g0 - (WD_slope * min.WD)
+  pg_slope <- (pg_maxWD - pg_minWD)/(max.WD - min.WD)
+  pg_int <- pg_minWD - (pg_slope * min.WD)
   
-  pot.growth = WD_int + (WD_slope * gdata$dbh)
+  pot.growth = pg_int + (pg_slope * gdata$dbh0)
   #pot.growth <- 1
   
-  s1_slope <- (s1_1 - s1_0)/(max.WD - min.WD)
-  s1_int <- s1_0 - (s1_slope * min.WD)
-  s2_slope <- (s2_1 - s2_0)/(max.WD - min.WD)
-  s2_int <- s2_0 - (s2_slope * min.WD)
+  s1_slope <- (s1_maxWD - s1_minWD)/(max.WD - min.WD)
+  s1_int <- s1_minWD - (s1_slope * min.WD)
+  s2_slope <- (s2_maxWD - s2_minWD)/(max.WD - min.WD)
+  s2_int <- s2_minWD - (s2_slope * min.WD)
   
-  g.size = ((gdata$dbh0/202)^(s1_int + (s1_slope * gdata$WD))) * exp(-(s2_int + (s2_slope * gdata$WD)) * gdata$dbh0)
-  #g.size = ((gdata$dbh0/202)^s1) * exp(-s2 * gdata$dbh0)
+  s1_WD <- s1_int + (s1_slope * gdata$WD)
+  s2_WD <- s2_int + (s2_slope * gdata$WD)
+  g.size = ((gdata$dbh0/202)^s1_WD) * exp(-(s2_WD) * gdata$dbh0)
   #g.size <- 1
   
-  g.comp = unlist(lapply(split.gdata,FUN=subplot.comp,c0,c1,c2_int,c2_slope))
-  #g.comp = unlist(lapply(fDBH,FUN=subplot.comp,c0,c1,c2))
+  g.comp = unlist(lapply(split.gdata,FUN=subplot.comp,c0_minWD,c0_maxWD,c1_minWD,c1_maxWD,c2_minWD,c2_maxWD))
   #g.comp <- 1
   
   pred = pot.growth * E * g.size * g.comp
   
-  #print(c(range(pot.growth),range(g.comp)))
   #print(c(range(pot.growth),range(g.size),range(g.comp)))
-  #print(c(range(pot.growth),g0,g1,WD_slope,WD_int))
   
   return(pred)
+  
 }
 
-#growth.ll <- function(g0,g1,s1,s2,c0,c1,c2,E_all,E_mean,E_sd,sigma_int,sigma_slope) {
-growth.ll <- function(g0,g1,s1_0,s1_1,s2_0,s2_1,c0,c1,c2,E_all,E_mean,E_sd,sigma_int,sigma_slope) {
-#growth.ll <- function(g0,g1,s1_0,s1_1,s2_0,s2_1,c0,c1,c2_int,c2_slope,E_all,E_mean,E_sd,sigma_int,sigma_slope) {
+growth.ll <- function(pg_minWD,pg_maxWD,s1_minWD,s1_maxWD,s2_minWD,s2_maxWD,c0_minWD,c0_maxWD,c1_minWD,c1_maxWD,c2_minWD,c2_maxWD,E_all,E_mean,E_sd,sigma_int,sigma_slope) {  
   
-  #g.pred <- pred.growth(g0,g1,s1_0,s1_1,s2_0,s2_1,c0,c2_int,c2_slope,E_all[gdata$PlotCode])
-  g.pred <- pred.growth(g0,g1,s1_0,s1_1,s2_0,s2_1,c0,c1,c2,E_all[gdata$PlotCode])
-  #g.pred <- pred.growth(g0,g1,s1,s2,c0,c1,c2,E_all[gdata$PlotCode])
+  g.pred <- pred.growth(pg_minWD,pg_maxWD,s1_minWD,s1_maxWD,s2_minWD,s2_maxWD,c0_minWD,c0_maxWD,c1_minWD,c1_maxWD,c2_minWD,c2_maxWD,E_all[gdata$PlotCode])
   
   sigma <- sigma_int + sigma_slope * g.pred
   
@@ -148,19 +119,18 @@ growth.ll <- function(g0,g1,s1_0,s1_1,s2_0,s2_1,c0,c1,c2,E_all,E_mean,E_sd,sigma
 }
 
 fb.pars <- list(
-  g0 = c(1e-3,100,1,1,0,1),
-  g1 = c(1e-3,100,1,1,0,1),
-  s1_0 = c(1e-6,3,1,0,1,1),  
-  s1_1 = c(1e-6,3,1,0,1,1), 
-  s2_0 = c(1e-6,10,1,0,1,1),
-  s2_1 = c(1e-6,10,1,0,1,1),
-  #s1 = c(1e-6,3,1,0,1,1), 
-  #s2 = c(1e-6,10,1,0,1,1),
-  c0 = c(-50,50,1,0,0,1),      
-  c1 = c(-5,5,0,0,0,1),
-  c2 = c(-5,5,2,0,0,1),
-  #c2_int = c(-5,5,2,0,0,1),
-  #c2_slope = c(-5,5,2,0,0,1),
+  pg_minWD = c(1e-3,100,1,1,0,1),
+  pg_maxWD = c(1e-3,100,1,1,0,1),
+  s1_minWD = c(1e-6,3,1,0,1,1),  
+  s1_maxWD = c(1e-6,3,1,0,1,1), 
+  s2_minWD = c(1e-6,10,1,0,1,1),
+  s2_maxWD = c(1e-6,10,1,0,1,1),
+  c0_minWD = c(-50,50,1,0,0,1),
+  c0_maxWD = c(-50,50,1,0,0,1),
+  c1_minWD = c(-5,5,0,0,0,1),
+  c1_maxWD = c(-5,5,0,0,0,1),
+  c2_minWD = c(-5,5,2,0,0,1),
+  c2_maxWD = c(-5,5,2,0,0,1),
   E_all = c(1e-3,1,1,0,1,0,181),
   E_mean = c(1e-3,1,1,1,1,1),
   E_sd = c(1e-3,1,1,1,1,1),
@@ -195,59 +165,3 @@ dev.off()
 fb.ci<-apply(fb.out,2,FUN=quantile,probs=c(0.025,0.5,0.975))
 df.fb.ci<-as.data.frame(fb.ci)
 write.table(df.fb.ci,"Parameters model 1.txt",row.names=F,quote=F,sep="\t")
-
-##############
-#########TRIAL
-
-#lapply(list2,`[`,-1)
-#lapply(split.gdata, "[[", "WD")
-
-#comp.fun <- function(target,c2) {
-comp.fun <- function(c2,target) {
-  
-  print(target)
-  return(exp(c2 * target))
-  
-}
-
-subplot.comp <- function(dbhs,c0,c1,c2) {
-  
-  #competition effect matrix
-  #comp <- outer(dbhs,rep(c2,length(dbhs)),FUN=comp.fun)
-  comp <- outer(rep(c2,length(dbhs)),dbhs,FUN=comp.fun)
-  diag(comp) <- 0
-  #print(length(dbhs))
-  print(comp)
-  print(class(comp))
-  
-  
-  #comp <- outer(subplot$log.dbh0,c2_int+c2_slope*subplot$WD,FUN=comp.fun)
-  
-  
-  
-  
-  #comp <- outer(subplot$log.dbh0,c2_int+c2_slope*(lapply(split.gdata,"[[","WD")),FUN=comp.fun)
-  
-  #growth effect on focal trees
-  #fcomp <- exp(-(c0_int + c0_slope*ul.fWD) * ((exp(dbhs))^(c1_int + c1_slope*ul.fWD)) * rowSums(comp))   #log dbh to avoid exponent in comp.fun
-  #fcomp <- exp(-c0 * ((exp(subplot$log.dbh0))^c1) * rowSums(comp))   #log dbh to avoid exponent in comp.fun
-  #fcomp <- exp(-c0 * ((exp(dbhs))^c1) * rowSums(comp[,-1]))   #remove first column (is focal tree?)
-  fcomp <- exp(-c0 * ((exp(dbhs))^c1) * rowSums(comp))   #remove first column (is focal tree?)
-  
-  print(rowSums(comp))
-  print(fcomp)
-  return(fcomp)
-  
-}
-
-dbhs<-list(p1=c(-0.5,-0.3,-0.01,1),p2=c(-0.2,0.2,-0.5),p3=c(1,-2,-0.5))
-dbhs2<-cbind(p1=c(-0.5,-0.3,-0.01),p2=c(-0.2,0.2,-0.5),p3=c(1,-2,-0.5))
-c0<-0.5
-c1<-0
-c2<-2
-
-g.comp <- unlist(lapply(dbhs,FUN=subplot.comp,c0,c1,c2))
-
-exp(c2 * -0.5)
-
-
