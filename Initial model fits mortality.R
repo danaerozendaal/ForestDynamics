@@ -43,8 +43,6 @@ pred.mort<-function(m0,m1,s1,s3,s4,c1,c2){
   #m.comp <- c1 + (1 - c1) * exp(-c2 * mdata$subplotBA.m2ha)
   m.comp <- 1
   
-  if(is.na(p.int)) print("NA")
-  
   #k <- pot.mort * m.size * m.comp
   #p.ann <- 1 / (1+exp(-k))
   p.ann <- 1 / (1 + (pot.longevity * m.size * m.comp)) 
@@ -58,30 +56,20 @@ pred.mort<-function(m0,m1,s1,s3,s4,c1,c2){
 
 mort.ll<-function(m0,m1,s1,s3,s4,c1,c2){
   
-  ll=numeric()
+  #probability of mortality
+  p.int<-pred.mort(m0,m1,s1,s3,s4,c1,c2)
   
-  #calculate likelihood for each tree
-  for (i in nrow(mdata)){
-    
-    if(is.na(p.int)) print("NA")
-    
-    #probability of mortality
-    p.int<-pred.mort(m0,m1,s1,s3,s4,c1,c2)
-    
-    #assign status (dead/alive) and calculate likelihood
-    if (mdata[i,]$dead==1) ll[i]<-dbinom(mdata[i,]$dead,size=1,prob=p.int[i],log=T)
-    else ll[i]<-dbinom(mdata[i,]$dead,size=1,prob=1-p.int[i],log=T)
-    
-    if(is.na(ll[i])) print(p.int)
-    
-    #sum likelihood per tree
-    ll_tot<-sum(ll)
-    
-    if(is.na(ll_tot)) print(range(p.int))
-    
-    return(ll_tot)
-    
-  }
+  #assign status (dead/alive) and calculate likelihood
+  ll <- log(ifelse(mdata$dead==1,p.int,1-p.int))
+      
+  #sum likelihood per tree
+  ll_tot<-sum(ll)
+  
+  if(is.na(ll_tot)) print(range(p.int))
+  #if(is.na(p.int)) print("NA")
+  
+  return(ll_tot)
+  
 }
 
 fb.pars.m<-list(
@@ -95,6 +83,33 @@ fb.pars.m<-list(
 )  
 
 fb.out.m<-filzbach(40000,20000,mort.ll,nrow(mdata),fb.pars.m)
+df.fb.out<-as.data.frame(fb.out)
+write.table(df.fb.out,"FB output mort model 1.txt",row.names=F,quote=F,sep="\t")
+
+final_out <- paste(readLines("C:/Users/rozendad/Dropbox/Current projects/UofR/ForestDynamics model runs/workspace/Default_MCMC_final_out.txt"), collapse="\t")
+write.table(final_out,"Final_out model 1.txt",row.names=F,quote=F,sep="\t")
+
+#Convergence
+pdf("Model 1.pdf",width=8,height=4)
+par(mfrow=c(1,2),mar=c(5,4,1,1))
+mort.llvec<-function(x) mort.ll(x[1],x[2],x[3],x[4],x[5],x[6],x[7])
+fb.out.ll<-apply(fb.out,1,mort.llvec)
+plot(fb.out.ll,type="l",main="40000/20000")
+
+#Calculate goodness of fit: how to calculate??
+fb.pm<-colMeans(fb.out)
+pred<-pred.mort(fb.pm[1],fb.pm[2],fb.pm[3],fb.pm[4],fb.pm[5],fb.pm[6],fb.pm[7])
+plot(pred,mdata$dead,main=paste("r2=",cor(pred,mdata$dead)^2))
+abline(0,1)
+
+dev.off()
+
+#Calculate credible intervals
+fb.ci<-apply(fb.out,2,FUN=quantile,probs=c(0.025,0.5,0.975))
+df.fb.ci<-as.data.frame(fb.ci)
+write.table(df.fb.ci,"Parameters model 1.txt",row.names=F,quote=F,sep="\t")
+
+
 
 ##########################################################################################
 ##########################################################################################
