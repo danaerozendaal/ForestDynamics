@@ -51,37 +51,45 @@ max.WD <- max(gdata$WD)
 #c0, c1 also as a function of WD
 #s1 (just positive?), s2 (only positive) as a function of WD
 
-comp.fun <- function(target,c2) {
+comp.fun <- function(c2,target) {
   
-  if (!is.finite(min(exp(c2*target)))) print(range(target))
+  #if (!is.finite(min(exp(c2*target)))) print(range(target))
 
   #return((target/20)^c2)
   return(exp(c2 * target))
   
 }
 
-subplot.comp <- function(dbhs,c0,c1,c2) {
-#subplot.comp <- function(subplot,c0,c1,c2_int,c2_slope) {
+#subplot.comp <- function(dbhs,c0,c1,c2) {
+subplot.comp <- function(subplot,c0,c1,c2_int,c2_slope) {
 #subplot.comp <- function(dbhs,c0,c1,c2_int,c2_slope) {
     
   #competition effect matrix
-  comp <- outer(dbhs,rep(c2,length(dbhs)),FUN=comp.fun)
-  print(length(dbhs))
-  #comp <- outer(subplot$log.dbh0,c2_int+c2_slope*subplot$WD,FUN=comp.fun)
+  #comp <- outer(dbhs,rep(c2,length(dbhs)),FUN=comp.fun)
+  #print(length(dbhs))
+  
+  c2.wd <- c2_int+c2_slope*subplot$WD
+  
+  comp <- outer(c2.wd,subplot$log.dbh0,FUN=comp.fun)
   #comp <- outer(subplot$log.dbh0,c2_int+c2_slope*(lapply(split.gdata,"[[","WD")),FUN=comp.fun)
   #comp <- outer(dbhs,c2_int+c2_slope*fWD,FUN=comp.fun)
+  
+  diag(comp) <- 0
+  
+  print(comp)
+  
   
   #growth effect on focal trees
   #fcomp <- exp(-c0 * ((dbhs/20)^c1) * rowSums(comp))
   #fcomp <- exp(-(c0_int + c0_slope*ul.fWD) * ((exp(dbhs))^(c1_int + c1_slope*ul.fWD)) * rowSums(comp))   #log dbh to avoid exponent in comp.fun
-  #fcomp <- exp(-c0 * ((exp(subplot$log.dbh0))^c1) * rowSums(comp))   #log dbh to avoid exponent in comp.fun
-  fcomp <- exp(-c0 * ((exp(dbhs))^c1) * rowSums(comp[,-1]))   #remove first column (is focal tree, I think?)
+  fcomp <- exp(-c0 * ((exp(subplot$log.dbh0*c1) * rowSums(comp))   #log dbh to avoid exponent in comp.fun
+  #fcomp <- exp(-c0 * ((exp(dbhs))^c1) * rowSums(comp[,-1]))   #remove first column (is focal tree, I think?)
     
 }
 
 #function for predicted growth rates
-pred.growth<-function(g0,g1,s1_0,s1_1,s2_0,s2_1,c0,c1,c2,E){
-#pred.growth<-function(g0,g1,s1,s2,c0,c1,c2_int,c2_slope,E){
+#pred.growth<-function(g0,g1,s1_0,s1_1,s2_0,s2_1,c0,c1,c2,E){
+pred.growth<-function(g0,g1,s1,s2,c0,c1,c2_int,c2_slope,E){
 #pred.growth<-function(g0,g1,s1,s2,c0,c1,c2,E){
   
   WD_slope <- (g1 - g0)/(max.WD - min.WD)
@@ -99,14 +107,14 @@ pred.growth<-function(g0,g1,s1_0,s1_1,s2_0,s2_1,c0,c1,c2,E){
   #g.size = ((gdata$dbh0/202)^s1) * exp(-s2 * gdata$dbh0)
   #g.size <- 1
   
-  #g.comp = unlist(lapply(split.gdata,FUN=subplot.comp,c0,c1,c2_int,c2_slope))
-  g.comp = unlist(lapply(fDBH,FUN=subplot.comp,c0,c1,c2))
+  g.comp = unlist(lapply(split.gdata,FUN=subplot.comp,c0,c1,c2_int,c2_slope))
+  #g.comp = unlist(lapply(fDBH,FUN=subplot.comp,c0,c1,c2))
   #g.comp <- 1
   
   pred = pot.growth * E * g.size * g.comp
   
   #print(c(range(pot.growth),range(g.comp)))
-  print(c(range(pot.growth),range(g.size),range(g.comp)))
+  #print(c(range(pot.growth),range(g.size),range(g.comp)))
   #print(c(range(pot.growth),g0,g1,WD_slope,WD_int))
   
   return(pred)
@@ -195,7 +203,7 @@ write.table(df.fb.ci,"Parameters model 1.txt",row.names=F,quote=F,sep="\t")
 #lapply(split.gdata, "[[", "WD")
 
 #comp.fun <- function(target,c2) {
-comp.fun <- function(target,c2) {
+comp.fun <- function(c2,target) {
   
   print(target)
   return(exp(c2 * target))
@@ -206,11 +214,18 @@ subplot.comp <- function(dbhs,c0,c1,c2) {
   
   #competition effect matrix
   #comp <- outer(dbhs,rep(c2,length(dbhs)),FUN=comp.fun)
-  comp <- outer(dbhs,rep(c2,length(dbhs)),FUN=comp.fun)
+  comp <- outer(rep(c2,length(dbhs)),dbhs,FUN=comp.fun)
+  diag(comp) <- 0
   #print(length(dbhs))
   print(comp)
   print(class(comp))
+  
+  
   #comp <- outer(subplot$log.dbh0,c2_int+c2_slope*subplot$WD,FUN=comp.fun)
+  
+  
+  
+  
   #comp <- outer(subplot$log.dbh0,c2_int+c2_slope*(lapply(split.gdata,"[[","WD")),FUN=comp.fun)
   
   #growth effect on focal trees
