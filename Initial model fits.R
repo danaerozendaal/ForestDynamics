@@ -1,5 +1,5 @@
-##############
-#GROWTH MODELS
+#################################
+#GROWTH MODEL WITH ALL WD EFFECTS
 
 library(filzbach)
 
@@ -20,7 +20,7 @@ gdata$subplotID<-as.numeric(gdata$subplotID)
 gdata$PlotCode<-factor(gdata$PlotCode)
 gdata$PlotCode<-as.numeric(gdata$PlotCode)
 
-#Calulate ln(dbh/20)
+#Calculate ln(dbh/20)
 gdata$log.dbh0<-log(gdata$dbh0/20)
 
 #Put values for all subplots into dataframes in a list
@@ -31,7 +31,7 @@ max.WD <- max(gdata$WD)
 
 ##########################################################################################
 ##########################################################################################
-##GROWTH MODEL (not working yet, competition dependent on WD)
+##GROWTH MODEL (competition dependent on WD)
 
 comp.fun <- function(c2,target) {
   
@@ -71,7 +71,7 @@ pred.growth<-function(pg_minWD,pg_maxWD,s1_minWD,s1_maxWD,s2_minWD,s2_maxWD,c0_m
   pg_slope <- (pg_maxWD - pg_minWD)/(max.WD - min.WD)
   pg_int <- pg_minWD - (pg_slope * min.WD)
   
-  pot.growth = pg_int + (pg_slope * gdata$dbh0)
+  pot.growth = pg_int + (pg_slope * gdata$WD)
   #pot.growth <- 1
   
   s1_slope <- (s1_maxWD - s1_minWD)/(max.WD - min.WD)
@@ -108,11 +108,9 @@ growth.ll <- function(pg_minWD,pg_maxWD,s1_minWD,s1_maxWD,s2_minWD,s2_maxWD,c0_m
   log_E_hier<-sum(dnorm(E_all,E_mean,E_sd,log=T))
   if(is.na(g.ll)) print(range(g.pred))
   
-  print((cor(g.pred,gdata$dbhgrowth))^2)
+  #print((cor(g.pred,gdata$dbhgrowth))^2)
   
   ll <- sum(g.ll) + sum(log_E_hier)
-  
-  #if(iter %% 100 == 0) print((cor(g.pred,gdata$dbhgrowth))^2) 
   
   return(ll)
   
@@ -121,12 +119,12 @@ growth.ll <- function(pg_minWD,pg_maxWD,s1_minWD,s1_maxWD,s2_minWD,s2_maxWD,c0_m
 fb.pars <- list(
   pg_minWD = c(1e-3,100,1,1,0,1),
   pg_maxWD = c(1e-3,100,1,1,0,1),
-  s1_minWD = c(1e-6,3,1,0,1,1),  
-  s1_maxWD = c(1e-6,3,1,0,1,1), 
-  s2_minWD = c(1e-6,10,1,0,1,1),
-  s2_maxWD = c(1e-6,10,1,0,1,1),
-  c0_minWD = c(-50,50,1,0,0,1),
-  c0_maxWD = c(-50,50,1,0,0,1),
+  s1_minWD = c(1e-6,15,1,0,0,1),  
+  s1_maxWD = c(1e-6,15,1,0,0,1), 
+  s2_minWD = c(1e-6,15,1,0,0,1),
+  s2_maxWD = c(1e-6,15,1,0,0,1),
+  c0_minWD = c(-5,5,1,0,0,1),
+  c0_maxWD = c(-5,5,1,0,0,1),
   c1_minWD = c(-5,5,0,0,0,1),
   c1_maxWD = c(-5,5,0,0,0,1),
   c2_minWD = c(-5,5,2,0,0,1),
@@ -138,25 +136,30 @@ fb.pars <- list(
   sigma_slope = c(1e-3,10,1,1,0,1)
 )
 
-fb.out<-filzbach(40000,20000,growth.ll,nrow(gdata),fb.pars)
-df.fb.out<-as.data.frame(fb.out)
-write.table(df.fb.out,"FB output model 1.txt",row.names=F,quote=F,sep="\t")
+t1<-Sys.time()
 
-final_out <- paste(readLines("C:/Users/rozendad/Dropbox/Current projects/UofR/ForestDynamics model runs/workspace/Default_MCMC_final_out.txt"), collapse="\t")
-write.table(final_out,"Final_out model 1.txt",row.names=F,quote=F,sep="\t")
+fb.out<-filzbach(80000,20000,growth.ll,nrow(gdata),fb.pars)
+df.fb.out<-as.data.frame(fb.out)
+write.table(df.fb.out,"FB output model 11.txt",row.names=F,quote=F,sep="\t")
+
+Sys.time() - t1
+
+final_out <- paste(readLines("C:/Users/DMAR/Dropbox/Current projects/UofR/ForestDynamics model runs 2/workspace/Default_MCMC_final_out.txt"), collapse="\t")
+write.table(final_out,"Final_out model 11.txt",row.names=F,quote=F,sep="\t")
 
 #Convergence
-pdf("Model 1.pdf",width=8,height=4)
+pdf("Model 11.pdf",width=8,height=4)
 par(mfrow=c(1,2),mar=c(5,4,1,1))
-growth.llvec<-function(x) growth.ll(x[1],x[2],x[3],x[4],x[5],x[6],x[7],x[8:188],x[189],x[190],x[191],x[192])
+growth.llvec<-function(x) growth.ll(x[1],x[2],x[3],x[4],x[5],x[6],x[7],x[8],x[9],x[10],
+                                    x[11],x[12],x[13:193],x[194],x[195],x[196],x[197])
 fb.out.ll<-apply(fb.out,1,growth.llvec)
-plot(fb.out.ll,type="l",main="40000/20000")
+plot(fb.out.ll,type="l",main="80000/20000")
 
 #Calculate goodness of fit
 fb.pm<-colMeans(fb.out)
 pred<-pred.growth(fb.pm[1],fb.pm[2],fb.pm[3],fb.pm[4],fb.pm[5],fb.pm[6],fb.pm[7],
-                  (fb.pm[8:188])[ul.PlotCode])
-plot(pred,ul.dbhgrowth,main=paste("r2=",cor(pred,ul.dbhgrowth)^2))
+                  fb.pm[8],fb.pm[9],fb.pm[10],fb.pm[11],fb.pm[12],(fb.pm[13:193])[gdata$PlotCode])
+plot(pred,gdata$dbhgrowth,main=paste("r2=",cor(pred,gdata$dbhgrowth)^2))
 abline(0,1)
 
 dev.off()
@@ -164,4 +167,4 @@ dev.off()
 #Calculate credible intervals
 fb.ci<-apply(fb.out,2,FUN=quantile,probs=c(0.025,0.5,0.975))
 df.fb.ci<-as.data.frame(fb.ci)
-write.table(df.fb.ci,"Parameters model 1.txt",row.names=F,quote=F,sep="\t")
+write.table(df.fb.ci,"Parameters model 11.txt",row.names=F,quote=F,sep="\t")
