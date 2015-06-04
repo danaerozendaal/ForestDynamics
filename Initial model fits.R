@@ -96,7 +96,8 @@ pred.growth<-function(pg_minWD,pg_maxWD,s1_minWD,s1_maxWD,s2_minWD,s2_maxWD,c0_m
   #g.comp = unlist(lapply(split.gdata,FUN=subplot.comp,c0_int,c0_slope,c1_int,c1_slope,c2_int,c2_slope))
   #g.comp <- gdata.dt[,subplot.comp(log.dbh0,WD,c0_int,c0_slope,c1_int,c1_slope,c2_int,c2_slope),by=subplotID][,V1]
 
-  g.comp <- exp(-c0_int * exp(gdata.dt$log.dbh0*c1_int) * gdata.dt$subplot.ba)
+  g.comp <- exp(-c0_minWD * exp(gdata.dt$log.dbh0*c1_int) * gdata.dt$subplot.ba)
+
   #g.comp <- 1
   
   if (!is.finite(sum(g.comp))) print(c(c0_minWD,c0_maxWD,c1_minWD,c1_maxWD,c2_minWD,c2_maxWD))
@@ -126,7 +127,7 @@ growth.ll <- function(pg_minWD,pg_maxWD,s1_minWD,s1_maxWD,s2_minWD,s2_maxWD,c0_m
   
   ll <- sum(g.ll) + sum(log_E_hier)
   
-  print(ll)
+  #print(ll)
   
   return(ll)
   
@@ -135,12 +136,12 @@ growth.ll <- function(pg_minWD,pg_maxWD,s1_minWD,s1_maxWD,s2_minWD,s2_maxWD,c0_m
 fb.pars <- list(
   pg_minWD = c(1e-3,100,1,1,0,1),
   pg_maxWD = c(1e-3,100,1,1,0,1),
-  s1_minWD = c(1e-6,15,1,0,0,1),  
-  s1_maxWD = c(1e-6,15,1,0,0,1), 
-  s2_minWD = c(1e-6,15,1,0,0,1),
-  s2_maxWD = c(1e-6,15,1,0,0,1),
-  c0_minWD = c(-3,3,1,0,0,1),
-  c0_maxWD = c(-3,3,1,0,0,1),
+  s1_minWD = c(1e-6,15,1,1,0,1),  
+  s1_maxWD = c(1e-6,15,1,1,0,1), 
+  s2_minWD = c(1e-6,15,1,1,0,1),
+  s2_maxWD = c(1e-6,15,1,1,0,1),
+  c0_minWD = c(1e-6,5,1,1,0,1),
+  c0_maxWD = c(1e-6,5,1,1,0,1),
   c1_minWD = c(-3,3,0,0,0,1),
   c1_maxWD = c(-3,3,0,0,0,1),
   c2_minWD = c(-2,3,2,0,0,1),
