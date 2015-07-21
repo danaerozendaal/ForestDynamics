@@ -1,14 +1,14 @@
 #FORMAT RAINFOR DATA
 
 library(reshape)
-library(FD)
 
 ##########################################################################
 ##FORMAT TREE DATA########################################################
 #Load raw data
 
+dropbox <- "C:/Users/DMAR/Dropbox/Rainfor data edited"
 #dropbox <- "C:/Users/rozendad/Dropbox/Rainfor data edited"
-dropbox <- "C:/Users/vande202/Dropbox/Rainfor data edited"
+#dropbox <- "C:/Users/vande202/Dropbox/Rainfor data edited"
 
 org.data<-read.table(paste(dropbox,"Treedata prep.txt",sep="/"),h=T)
 
@@ -166,10 +166,6 @@ summary(trees.xy)
 ##Count number of suitable plots based on subplot size etc. and xy coords
 pdata3<-merge(pdata2,trees.xy,by="PlotCode",all.x=T)
 
-###GO BACK to plot data, add trees.xy
-##Count number of suitable plots based on subplot size etc. and xy coords
-pdata3<-merge(pdata2,trees.xy,by="PlotCode",all.x=T)
-
 #Look at subplots / xy coords (at least 90% of trees mapped)
 pdata3$xy.90<-ifelse(!is.na(pdata3$perc.trees.x) & !is.na(pdata3$perc.trees.x.std) & 
                   (pdata3$perc.trees.x>=90 | pdata3$perc.trees.x.std>=90),1,0)
@@ -203,7 +199,7 @@ totdata2$genus<-totdata2$GenusName
 totdata2$binomial<-totdata2$FullSpeciesName
 
 #######################
-##Add in WD for spp per region, otherwise a genus average per region
+##Add in WD for spp per region, otherwise a genus or family average per region
 WD.chave<-read.table("WD_Chave.txt",h=T)
 
 #Check spelling of species, genus, and family names that are not present in 
@@ -262,48 +258,12 @@ for (reg in regions) {
                          ifelse(!is.na(sel.data$WDfam.chave),sel.data$WDfam.chave,NA)))
 
     ###################################################
-    #Add cwm WD mean per plot (for now) to fill in missing values. Takes long...
-    #Change to average WD of all species present per plot to match Brienen et al. 2015 
+    #Add average WD of all (identified) stems per plot (following Brienen et al. 2015) 
                      
-    #Make a new wood density file
-    WD.datanew1<-aggregate(sel.data$WD2,list(sel.data$binomial),mean,na.rm=T)
-    names(WD.datanew1)<-c("species","WD")
-    WDnew1<-WD.datanew1
-                     
-    ##Calculate cmm WD (based on basal area)
-    #Assemble sppBA matrix
-    sppBA<-aggregate(sel.data$BA0,list(sel.data$PlotCode,sel.data$binomial),
-                                      sum,na.rm=T)
-    names(sppBA)<-c("PlotCode","species","BA")
-                     
-    sppBA2<-cast(sppBA, species ~ PlotCode)
-                     
-    #Sort WD and BA data, change species column to "character"
-    WDnew1<-WDnew1[WDnew1$species %in% sppBA2$species,]
-    WDnew1$species<-as.character(WDnew1$species)
-    WDnew1<-WDnew1[order(WDnew1$species),]
-    sppBA2$species<-as.character(sppBA2$species)
-    sppBA2<-sppBA2[order(sppBA2$species),]
-                     
-    #Change traits dataframe for CWM to matrix with species as rownames
-    m.WDnew1.CWM<-as.matrix(WDnew1[,-1])
-    rownames(m.WDnew1.CWM)<-WDnew1[,1]
-                     
-    #Change abundance dataframes to matrices with species as rownames
-    m.sppBA.tot<-as.matrix(sppBA2)
-                     
-    #Transpose abundance matrices: plots as rows
-    m.sppBA.tot2<-t(m.sppBA.tot)
-    m.sppBA.tot2<-as.matrix(m.sppBA.tot2)
-                     
-    #Calculate community-weighted means
-    funct1<-functcomp(m.WDnew1.CWM, m.sppBA.tot2)
-    funct2<-as.data.frame(funct1)
-    funct2$PlotCode<-rownames(funct2)
-    names(funct2)<-c("cwmWD","PlotCode")
-                     
-    #Merge sel.data and funct2
-    sel.data2<-merge(sel.data,funct2)
+    plotWD<-aggregate(sel.data$WD2,list(sel.data$PlotCode),mean,na.rm=T)
+    names(plotWD)<-c("PlotCode","meanWD")
+    
+    sel.data2<-merge(sel.data,plotWD,all.x=T)
                      
     vector1<-rbind(vector1,sel.data2)
 }
@@ -311,7 +271,7 @@ for (reg in regions) {
 totdata3<-vector1    
     
 #Select correct WD value                     
-totdata3$WD3<-ifelse(is.na(totdata3$WD2),totdata3$cwmWD,totdata3$WD2)
+totdata3$WD3<-ifelse(is.na(totdata3$WD2),totdata3$meanWD,totdata3$WD2)
 totdata3$WD<-totdata3$WD3
 
 #Replace with equation(s) from Feldpausch et al.
@@ -409,4 +369,14 @@ write.table(totdata6,"All data for analysis.txt",row.names=F,quote=F,sep="\t")
 #Mean calendar dates: census intervals range from 1968 to 2010 (mean 1997, median 1998).
 #Subplots and neighbourhood structures.
 #What resolution? Species-level not possible. Trait values...?
+
+#Amazon
+length(unique(data[data$region=="South.America",]$PlotCode))  #121 plots
+length(unique(data[data$region=="South.America",]$binomial))  #3323 spp!!
+length(unique(data[data$region=="South.America",]$TreeID))    #92624 trees
+
+#Africa
+length(unique(data[data$region=="Africa",]$PlotCode))  #62 plots
+length(unique(data[data$region=="Africa",]$binomial))  #734 spp
+length(unique(data[data$region=="Africa",]$TreeID))    #26668 trees
 
