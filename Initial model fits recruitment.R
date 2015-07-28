@@ -34,13 +34,6 @@ rdata2$subplotID<-as.numeric(rdata2$subplotID)
 rdata2$PlotCode<-factor(rdata2$PlotCode)
 rdata2$PlotCode<-as.numeric(rdata2$PlotCode)
 
-#min.WD<-min(rdata2$WD)
-#max.WD<-max(rdata2$WD)
-
-##
-#meanWD<-aggregate(rdata2$WD,list(rdata2$PlotCode),mean,na.rm=T)
-#names(meanWD)<-c("PlotCode","meanWD")
-
 rdata3<-rdata2
 
 ##INITIAL RECRUITMENT MODEL
@@ -109,12 +102,6 @@ par(mfrow=c(1,2),mar=c(5,4,1,1))
 recr.llvec<-function(x) recr.ll(x[1],x[2],x[3:183],x[184],x[185],x[186])
 fb.out.ll<-apply(fb.out.r,1,recr.llvec)
 plot(fb.out.ll,type="l",main="40000/20000")
-
-#Calculate goodness of fit
-fb.pm<-colMeans(fb.out.r)
-pred<-pred.recr(fb.pm[1],fb.pm[2],(fb.pm[3:183])[rdata3$PlotCode])
-plot(pred,rdata3$sum.recruits,main=paste("r2=",cor(pred,rdata3$sum.recruits)^2))
-abline(0,1)
 
 dev.off()
 
