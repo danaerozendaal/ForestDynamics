@@ -1,12 +1,5 @@
 ##########################################################################################
 ##RECRUITMENT MODEL
-#In simulations later: for new recruits, draw a number of recruits based on observed subplot values,
-#and assign randomly a WD level (e.g., based on PLOT-level range in WD values).
-
-#Recruitment: number of stems/ha/yr per subplot
-#Model: potential recruitment (as function of WD?) * 
-#       competition effect (for now subplot BA) * random plot effect 
-#Competition effect based on neighbour WD?
 
 library(filzbach)
 
