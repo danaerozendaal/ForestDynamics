@@ -39,11 +39,7 @@ pred.recr<-function(pot.recr,c0,E){
   
   #Predicted annual recruitment
   pred.ann <- pot.recr * r.comp * E
-  pred.int <- (pred.ann * rdata3$IntervalLength)/rdata3$subplot.area        
-  #in mort model: p.int <- ((1-p.ann)^mdata$IntervalLength)
-  
-  pred.int[pred.int<0.0001] <- 0.0001
-  pred.int[pred.int>0.9999] <- 0.9999
+  pred.int <- (pred.ann * rdata3$IntervalLength) * rdata3$subplot.area
   
   return(pred.int)
 }
