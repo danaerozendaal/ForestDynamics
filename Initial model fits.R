@@ -28,7 +28,7 @@ gdata$log.dbh0<-log(gdata$dbh0/20)
 gdata.dt <- data.table(gdata)
 setkey(gdata.dt,subplotID) #note: this re-sorts gdata by subplotID; doesn't seem to speed things up much
 
-gdata.dt[,subplot.ba := pi*sum(dbh0^2)/40000/subplot.area ,by=subplotID]
+#gdata.dt[,subplot.ba := pi*sum(dbh0^2)/40000/subplot.area ,by=subplotID]
 
 #Put values for all subplots into dataframes in a list
 split.gdata <- split(gdata,gdata$subplotID)
@@ -94,9 +94,9 @@ pred.growth<-function(pg_minWD,pg_maxWD,s1_minWD,s1_maxWD,s2_minWD,s2_maxWD,c0_m
   c2_int <- c2_minWD - (c2_slope * min.WD)
       
   #g.comp = unlist(lapply(split.gdata,FUN=subplot.comp,c0_int,c0_slope,c1_int,c1_slope,c2_int,c2_slope))
-  #g.comp <- gdata.dt[,subplot.comp(log.dbh0,WD,c0_int,c0_slope,c1_int,c1_slope,c2_int,c2_slope),by=subplotID][,V1]
+  g.comp <- gdata.dt[,subplot.comp(log.dbh0,WD,c0_int,c0_slope,c1_int,c1_slope,c2_int,c2_slope),by=subplotID][,V1]
 
-  g.comp <- exp(-c0_minWD * exp(gdata.dt$log.dbh0*c1_int) * gdata.dt$subplot.ba)
+  #g.comp <- exp(-c0_minWD * exp(gdata.dt$log.dbh0*c1_int) * gdata.dt$subplot.ba)
 
   #g.comp <- 1
   

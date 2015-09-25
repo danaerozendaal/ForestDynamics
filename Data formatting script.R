@@ -6,8 +6,8 @@ library(reshape)
 ##FORMAT TREE DATA########################################################
 #Load raw data
 
-dropbox <- "C:/Users/DMAR/Dropbox/Rainfor data edited"
-#dropbox <- "C:/Users/rozendad/Dropbox/Rainfor data edited"
+#dropbox <- "C:/Users/DMAR/Dropbox/Rainfor data edited"
+dropbox <- "C:/Users/rozendad/Dropbox/Rainfor data edited"
 #dropbox <- "C:/Users/vande202/Dropbox/Rainfor data edited"
 
 org.data<-read.table(paste(dropbox,"Treedata prep.txt",sep="/"),h=T)
