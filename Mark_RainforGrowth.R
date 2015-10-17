@@ -1,6 +1,6 @@
 
 #################################
-#MORT MODEL WITH ALL WD EFFECTS
+#GROWTH MODEL WITH ALL WD EFFECTS
 
 #Load/select/format data
 #dropbox <- "C:/Users/DMAR/Dropbox/Rainfor data edited"
@@ -15,7 +15,7 @@ data<-alldata[,c("PlotCode","subplotID","subplot.area",
                  "CensusDate","dbh0","dbhgrowth","BA0","dead",
                  "recruit","WD","subplotBA.m2ha")]
 
-mdata<-data[!is.na(data$dbh0) & !is.na(data$WD) &
+gdata<-data[!is.na(data$dbhgrowth) & !is.na(data$dbh0) & !is.na(data$WD) &
               !is.na(data$subplot.area) & !is.na(data$subplot.no.trees) & 
               !is.na(data$dead) & data$dbh0>0,]
 
@@ -24,7 +24,7 @@ mdata<-data[!is.na(data$dbh0) & !is.na(data$WD) &
 knots <- c(10,20,30,40,50,60,70,80,90,100)
 
 #read in parameters
-pars <- read.csv("D:\\code\\io\\RainforMortPars.csv")
+pars <- read.csv("D:\\code\\io\\RainforGrowthPars.csv")
 pars <- as.matrix(pars[pars$burnin=="sampling",-(1:2)])
 
 #posterior means
@@ -89,7 +89,7 @@ spline.pred <- function (dbh,y,endslope) {
   if (len>4) for (i in 2:(len-3)) {
     ls[i,i+(-1:1)] <- c(h[i-1],2*(h[i-1]+h[i]),h[i])  
   }
-    
+  
   m <- c(0,solve(ls) %*% u)
   
   #clamped right side: add last m from Table 5.8 ("Numerical Methods Using Matlab")
@@ -111,7 +111,7 @@ spline.pred <- function (dbh,y,endslope) {
   #create preds
   k.pred <- s[i,1] + s[i,2]*x.obs2 + s[i,3]*x.obs2^2 + s[i,4]*x.obs2^3
   
-  y.pred <- 1/(1+exp(-k.pred))
+  y.pred <- exp(k.pred)
   
   return(y.pred)
   
@@ -131,17 +131,15 @@ for (iWD in 1:3) { #loop across WD values (min, median, max)
   } #for iPlot
 } #for iWD
 
-p.preds.logit <- log(p.preds/(1-p.preds))
-
 #make set of 3 plots
 layout(matrix(1:3,nrow=1))
-matplot(dbh.seq,p.preds[1,,],type="l",lty=1,col=rgb(0,0,0,0.2),xlim=c(10,120),ylim=c(0,0.1),log="",xlab="DBH",ylab="Annual Mortality")
+matplot(dbh.seq,p.preds[1,,],type="l",lty=1,col=rgb(0,0,0,0.2),xlim=c(10,120),ylim=c(0,2),log="",xlab="DBH",ylab="Annual Mortality")
 lines(dbh.seq,rowMeans(p.preds[1,,]),col="red",lwd=3)
 title(main="WD 0.3")
-matplot(dbh.seq,p.preds[2,,],type="l",lty=1,col=rgb(0,0,0,0.2),xlim=c(10,120),ylim=c(0,0.1),log="",xlab="DBH",ylab="Annual Mortality")
+matplot(dbh.seq,p.preds[2,,],type="l",lty=1,col=rgb(0,0,0,0.2),xlim=c(10,120),ylim=c(0,2),log="",xlab="DBH",ylab="Annual Mortality")
 lines(dbh.seq,rowMeans(p.preds[2,,]),col="red",lwd=3)
 title(main="WD 0.5")
-matplot(dbh.seq,p.preds[3,,],type="l",lty=1,col=rgb(0,0,0,0.2),xlim=c(10,120),ylim=c(0,0.1),log="",xlab="DBH",ylab="Annual Mortality")
+matplot(dbh.seq,p.preds[3,,],type="l",lty=1,col=rgb(0,0,0,0.2),xlim=c(10,120),ylim=c(0,2),log="",xlab="DBH",ylab="Annual Mortality")
 lines(dbh.seq,rowMeans(p.preds[3,,]),col="red",lwd=3)
 title(main="WD 0.7")
 
@@ -149,42 +147,40 @@ title(main="WD 0.7")
 #same plots, but now one plot at a time (layout 12 at a time)
 layout(matrix(1:12,nrow=3,byrow=T))
 par(mar=c(3,2,1,0))
-for(i in 1:189) plot(dbh.seq,p.preds[2,,i],ylim=c(0,0.06),type="l",main=i,xlab="",ylab="")
+for(i in 1:189) plot(dbh.seq,p.preds[2,,i],ylim=c(0,2),type="l",main=i,xlab="",ylab="")
 
 #obs vs pred plots
-mdata$sp.num <- match(mdata$binomial,unique(mdata$binomial))
-mdata$plot.num <- match(mdata$PlotCode,unique(mdata$PlotCode))
+gdata$sp.num <- match(gdata$binomial,unique(gdata$binomial))
+gdata$plot.num <- match(gdata$PlotCode,unique(gdata$PlotCode))
 
 #read in predictions from file
-mdata$pred <- read.csv(paste(dropbox,"RainforMortPars_meanpreds.csv",sep="/"),header=T)[,1]
-
-mdata$pred.census <- 1 - (1 - mdata$pred)^mdata$IntervalLength
+gdata$pred <- read.csv(paste(dropbox,"RainforGrowthPars_meanpreds.csv",sep="/"),header=T)[,1]
 
 #group obs and pred by DBH bin
 layout(1)
-dbin <- 10*round(mdata$dbh0/10,0)
-obs.dbin <- tapply(mdata$dead,dbin,FUN=mean)
-pred.dbin <- tapply(mdata$pred.census,dbin,FUN=mean)
+dbin <- 10*round(gdata$dbh0/10,0)
+obs.dbin <- tapply(gdata$dbhgrowth,dbin,FUN=mean)
+pred.dbin <- tapply(gdata$pred,dbin,FUN=mean)
 
 d.ord <- order(unique(dbin))
 
 #PLOT #4: mean obs vs pred by DBH bin
 plot(unique(dbin)[d.ord],obs.dbin,type="l")
-lines(unique(dbin)[d.ord],pred.dbin,col=rgb(1,0,0,0.5))
+lines(unique(dbin)[d.ord],pred.dbin,col="red")
 
 #same idea, now for WD bins
-wdbin <- round(mdata$WD,1)
-obs.wdbin <- tapply(mdata$dead,wdbin,FUN=mean)
-pred.wdbin <- tapply(mdata$pred.census,wdbin,FUN=mean)
+wdbin <- round(gdata$WD,1)
+obs.wdbin <- tapply(gdata$dbhgrowth,wdbin,FUN=mean)
+pred.wdbin <- tapply(gdata$pred,wdbin,FUN=mean)
 
 wd.ord <- order(unique(wdbin))
 
 #PLOT #5: mean obs vs pred by WD bin
 plot(unique(wdbin)[wd.ord],obs.wdbin,type="l")
-lines(unique(wdbin)[wd.ord],pred.wdbin,col=rgb(1,0,0,0.5))
+lines(unique(wdbin)[wd.ord],pred.wdbin,col="red")
 
 #PLOT #6: obs vs pred by plot
-plot(tapply(mdata$pred.census,mdata$PlotCode,FUN="mean"),tapply(mdata$dead,mdata$PlotCode,FUN="mean"))
+plot(tapply(gdata$pred,gdata$PlotCode,FUN="mean"),tapply(gdata$dbhgrowth,gdata$PlotCode,FUN="mean"))
 abline(0,1)
 
 ##################################################################
