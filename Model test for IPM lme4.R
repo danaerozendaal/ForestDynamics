@@ -12,10 +12,10 @@ dropbox <- "C:/Users/rozendad/Dropbox/Rainfor data edited"
 
 alldata<-read.table(paste(dropbox,"All data for analysis.txt",sep="/"),h=T)
 
-data<-alldata[,c("PlotCode","subplotID","subplot.area",
+data<-alldata[,c("region","PlotCode","subplotID","subplot.area",
                  "subplot.no.trees","TreeID","family",
                  "binomial","region","IntervalLength",
-                 "CensusDate","dbh0","dbhgrowth","BA0","dead",
+                 "CensusDate","dbh0","dbh1","dbhgrowth","BA0","dead",
                  "recruit","WD","subplotBA.m2ha")]
 
 gdata<-data[!is.na(data$dbhgrowth) & !is.na(data$dbh0) & !is.na(data$WD) &
@@ -40,7 +40,7 @@ gdata$s.WD<-(gdata$WD-mean(gdata$WD))/sd(gdata$WD)
 ##########################################################################################
 ##########################################################################################
 ##DATA EXPLORATION
-#Look calendar dates, maps plot locations, look at climate.
+#Look at calendar dates and plot locations.
 #Include all plots.
 
 library(maps)
@@ -49,10 +49,25 @@ library(mapdata)
 cal.year<-aggregate(gdata$CensusDate,list(gdata$PlotCode),mean,na.rm=T)
 names(cal.year)<-c("PlotCode","CensusDate")
 
-#181 plots, min=1976, max=2009, in total 4 plots before 1980, 42 before 1990,
-#107 before 2000, 127 before 2005) 
+##Reformat data formatting script still to include all 209 plots
+#now 181 plots, min=1976, max=2009, in total 4 plots before 1980, 42 before 1990,
+#109 before 2000, 133 before 2005) 
 
-#Load plot data for maps
+##No. plots and spp per continent
+#Africa: 62 plots, 700 spp
+length(unique(gdata[gdata$region=="Africa",]$PlotCode))
+length(unique(gdata[gdata$region=="Africa",]$binomial))
+
+#South America: 127 plots, 3178 spp
+length(unique(gdata[gdata$region=="South.America",]$PlotCode))
+length(unique(gdata[gdata$region=="South.America",]$binomial))
+
+#Count number of stems per species
+agg<-aggregate(gdata$dbh0,list(gdata$region,gdata$PlotCode,gdata$binomial),function(x) length(na.omit(x)))
+names(agg)<-c("region","PlotCode","binomial","no.stems")
+agg2<-agg[order(-agg$no.stems),]
+
+##Load plot data for maps
 plotdata<-read.table("Plotdata.txt",h=T)
 plotdata2<-plotdata[plotdata$PlotCode %in% gdata2$PlotCode,]
 plotdata2$LongitudeDecimal<--plotdata2$LongitudeDecimal
@@ -105,22 +120,25 @@ AICc(model5)
 summary(model5)
 r.squaredGLMM(model5)
 
-#Fixed effects:
-#  Estimate Std. Error t value
-#(Intercept)   0.36896    0.14296   2.581
-#ln.dbh0      -0.09458    0.09014  -1.049
-#ln.dbh0_2     0.02797    0.01413   1.979
-#WD           -0.92023    0.21433  -4.294
-#ln.dbh0:WD    0.48383    0.13529   3.576
-#ln.dbh0_2:WD -0.07784    0.02122  -3.668
+#Model 6: works
+model6<-lmer(dbhgrowth~s.ln.dbh0 + s.ln.dbh0_2 + (s.ln.dbh0 + s.ln.dbh0_2|PlotCode/binomial), data=gdata)
+AICc(model6)          
+summary(model6)
+r.squaredGLMM(model6)
 
 newdata<-data.frame(WD=c(rep(0.3,100),rep(0.6,100),rep(0.9,100)),
                     dbh0=c(rep(seq(10,200,length.out=100),3)))
 newdata$ln.dbh0<-log(newdata$dbh0)
 newdata$ln.dbh0_2<-newdata$ln.dbh0^2
-newdata$pred<-predict(model5,newdat=newdata,re.form=NA)
+newdata$pred<-predict(model6,newdat=newdata,re.form=NA)
 plot(newdata$dbh0,newdata$pred)
 
+#Extract species-specific coefficients for in IPM
+coefficients <- coef(model6)$binomial
+coefficients$sp.plotnames<-row.names(coefficients)
+vector<-strsplit(coefficients$sp.plotnames,":") #fix still
+
+write.table(coefficients,"Coefficients for IPM test growth.txt",row.names=F,quote=F,sep="\t")
 ##########################################################################################
 ##########################################################################################
 ###MODEL TEST MORTALITY
@@ -135,10 +153,10 @@ dropbox <- "C:/Users/rozendad/Dropbox/Rainfor data edited"
 
 alldata<-read.table(paste(dropbox,"All data for analysis.txt",sep="/"),h=T)
 
-data<-alldata[,c("PlotCode","subplotID","subplot.area",
+data<-alldata[,c("region","PlotCode","subplotID","subplot.area",
                  "subplot.no.trees","TreeID",
                  "binomial","region","IntervalLength",
-                 "CensusDate","dbh0","dbhgrowth","BA0","dead",
+                 "CensusDate","dbh0","dbh1","dbhgrowth","BA0","dead",
                  "recruit","WD","subplotBA.m2ha")]
 
 ##data$dead==1, dead.
@@ -147,10 +165,10 @@ mdata<-data[!is.na(data$dbh0) & data$dbh0>0 & !is.na(data$WD) &
               !is.na(data$subplot.area) & !is.na(data$subplot.no.trees) & 
               !is.na(data$dead),]  #check still!
 
-mdata$subplotID<-factor(mdata$subplotID)
-mdata$subplotID<-as.numeric(mdata$subplotID)
-mdata$PlotCode<-factor(mdata$PlotCode)
-mdata$PlotCode<-as.numeric(mdata$PlotCode)
+#mdata$subplotID<-factor(mdata$subplotID)
+#mdata$subplotID<-as.numeric(mdata$subplotID)
+#mdata$PlotCode<-factor(mdata$PlotCode)
+#mdata$PlotCode<-as.numeric(mdata$PlotCode)
 
 #Standardize predictors
 mdata$ln.dbh0<-log(mdata$dbh0)
@@ -159,6 +177,9 @@ mdata$ln.dbh0_2<-mdata$ln.dbh0^2
 mdata$s.ln.dbh0_2<-(mdata$ln.dbh0_2-mean(mdata$ln.dbh0_2))/sd(mdata$ln.dbh0_2)   
 mdata$s.dbh0<-(mdata$dbh0-mean(mdata$dbh0))/sd(mdata$dbh0)                           
 mdata$s.WD<-(mdata$WD-mean(mdata$WD))/sd(mdata$WD)
+
+#Add in survival
+mdata$surv<-ifelse(mdata$dead==0,1,0)
 
 #To correct for IntervalLength still.
 
@@ -200,6 +221,36 @@ AICc(model5)
 summary(model5)
 r.squaredGLMM(model5)
 
+#Model 6: does not work
+model6<-glmer(dead~s.ln.dbh0 + s.ln.dbh0_2 + (s.ln.dbh0 + s.ln.dbh0_2|PlotCode/binomial), 
+              family=binomial, data=mdata)
+AICc(model6)          
+summary(model6)
+r.squaredGLMM(model6)
+
+#Model 7: does not work
+model7<-glmer(surv~ln.dbh0 + (ln.dbh0|PlotCode/binomial), 
+              family=binomial, data=mdata)
+AICc(model7)          
+summary(model7)
+r.squaredGLMM(model7)
+
+#Model 7: works
+mdata.Africa<-mdata[mdata$region=="Africa",]
+model7<-glmer(surv~ln.dbh0 + (ln.dbh0|PlotCode/binomial), 
+              family=binomial, data=mdata.Africa)
+AICc(model7)          
+summary(model7)
+r.squaredGLMM(model7)
+
+#Model 8
+mdata.South.America<-mdata[mdata$region=="South.America",]
+model8<-glmer(surv~ln.dbh0 + (ln.dbh0|PlotCode/binomial), 
+              family=binomial, data=mdata.South.America)
+AICc(model8)          
+summary(model8)
+r.squaredGLMM(model8)
+
 #
 newdata2<-data.frame(WD=c(rep(0.3,100),rep(0.6,100),rep(0.9,100)),
                     dbh0=c(rep(seq(10,200,length.out=100),3)))
@@ -212,3 +263,28 @@ newdata2$s.WD<-(newdata2$WD-mean(newdata2$WD))/sd(newdata2$WD)
 
 newdata2$pred<-predict(model5,newdat=newdata2,re.form=NA,type=c("response"))
 plot(newdata2$dbh0,newdata2$pred)
+
+#Extract species-specific coefficients for in IPM
+coefficients <- coef(model8)$binomial
+coefficients$sp.plotnames<-row.names(coefficients)
+names(coefficients)<-c("intercept","ln.dbh0","sp.plotnames")
+vector<-strsplit(coefficients$sp.plotnames,":") #fix still
+
+#write.table(coefficients,"Coefficients for IPM test mort.txt",row.names=F,quote=F,sep="\t")
+write.table(coefficients,"Coefficients for IPM test surv SA.txt",row.names=F,quote=F,sep="\t")
+
+##########################################################################################
+##########################################################################################
+#Select recruitment data
+
+alldata<-read.table("All data for analysis.txt",h=T)
+
+data<-alldata[,c("PlotCode","subplotID","subplot.area",
+                 "subplot.no.trees","TreeID",
+                 "binomial","region","IntervalLength",
+                 "CensusDate","dbh0","dbh1","dbhgrowth","BA0","dead",
+                 "recruit","WD","subplotBA.m2ha")]
+
+#4 trees with dbh0=0, now excluded.
+rdata<-data[!is.na(data$dbh1) & data$dbh1>0 & !is.na(data$WD) &
+              !is.na(data$subplot.area) & !is.na(data$subplot.no.trees),]  #check still!
