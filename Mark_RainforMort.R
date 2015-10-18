@@ -1,13 +1,10 @@
-
-library(lme4)
-
 #################################
 #MORT MODEL WITH ALL WD EFFECTS
 
 #Load/select/format data
-#dropbox <- "C:/Users/DMAR/Dropbox/Rainfor data edited"
+dropbox <- "C:/Users/DMAR/Dropbox/Rainfor data edited"
 #dropbox <- "C:/Users/rozendad/Dropbox/Rainfor data edited"
-dropbox <- "C:/Users/vande202/Dropbox/Rainfor data edited"
+#dropbox <- "C:/Users/vande202/Dropbox/Rainfor data edited"
 
 alldata<-read.table(paste(dropbox,"All data for analysis.txt",sep="/"),h=T)
 
@@ -21,10 +18,10 @@ mdata<-data[!is.na(data$dbh0) & !is.na(data$WD) &
               !is.na(data$subplot.area) & !is.na(data$subplot.no.trees) & 
               !is.na(data$dead) & data$dbh0>0,]
 
-
-
-pars <- read.csv("D:\\code\\io\\RainforMortPars.csv")
+#pars <- read.csv("D:\\code\\io\\RainforMortPars.csv")
 #pars <- read.csv("D:\\code\\io\\RainforGrowthPars.csv")
+pars <- read.csv(paste(dropbox,"RainforMortPars.csv",sep="/"),h=T)
+
 pars <- as.matrix(pars[pars$burnin=="sampling",-(1:2)])
 
 pm <- colMeans(pars)
